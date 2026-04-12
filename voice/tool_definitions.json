@@ -1,0 +1,43 @@
+[
+  {
+    "name": "get_background_info",
+    "description": "Retrieve information about background, skills, experience, or GitHub projects.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" }
+      },
+      "required": ["question"]
+    }
+  },
+  {
+    "name": "get_availability",
+    "description": "Fetch real calendar availability for the next 7 days.",
+    "parameters": { "type": "object", "properties": {} }
+  },
+  {
+    "name": "book_meeting",
+    "description": "Book a meeting after collecting name, email, and datetime.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "datetime": { "type": "string" }
+      },
+      "required": ["name", "email", "datetime"]
+    }
+  },
+  {
+    "name": "get_github_info",
+    "description": "Get details about a specific GitHub repository.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "repo_name": { "type": "string" },
+        "question": { "type": "string" }
+      },
+      "required": ["repo_name"]
+    }
+  }
+]

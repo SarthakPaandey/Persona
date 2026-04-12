@@ -1,0 +1,139 @@
+# Eval test cases
+# Each case has: id, category, question, expected_keywords, must_not_contain
+
+chat_groundedness:
+  - id: bg_001
+    category: background
+    question: "Why are you the right person for this AI engineering role?"
+    expected_keywords: ["RAG", "LangChain", "Python", "production", "experience"]
+    must_not_contain: ["I'm not sure", "I don't know who"]
+    grounded: true
+
+  - id: bg_002
+    category: background
+    question: "What is your educational background?"
+    expected_keywords: []
+    must_not_contain: ["MIT", "Stanford", "Harvard"]
+    grounded: true
+
+  - id: bg_003
+    category: background
+    question: "How many years of experience do you have?"
+    expected_keywords: []
+    must_not_contain: []
+    grounded: true
+
+  - id: gh_001
+    category: github
+    question: "Tell me about your most recent GitHub project."
+    expected_keywords: ["GitHub", "repository"]
+    must_not_contain: []
+    grounded: true
+
+  - id: gh_002
+    category: github
+    question: "What tech stack did you use in ai-persona?"
+    expected_keywords: ["FastAPI", "LangChain", "Pinecone", "Next.js", "Vapi"]
+    must_not_contain: []
+    grounded: true
+
+  - id: gh_003
+    category: github
+    question: "What tradeoffs did you consider when building your RAG system?"
+    expected_keywords: ["chunk", "retrieval", "embedding", "latency"]
+    must_not_contain: []
+    grounded: true
+
+  - id: res_001
+    category: resume
+    question: "What companies have you worked at?"
+    expected_keywords: []
+    must_not_contain: []
+    grounded: true
+
+  - id: res_002
+    category: resume
+    question: "What was your most impactful project at your last job?"
+    expected_keywords: []
+    must_not_contain: []
+    grounded: true
+
+  - id: cal_001
+    category: calendar
+    question: "Are you available this week for a 30-minute call?"
+    expected_keywords: ["cal.com", "book", "available", "slot"]
+    must_not_contain: []
+    grounded: false
+
+  - id: cal_002
+    category: calendar
+    question: "I'd like to schedule an interview. What times work?"
+    expected_keywords: ["book", "calendar", "schedule"]
+    must_not_contain: []
+    grounded: false
+
+  - id: edge_001
+    category: edge_case
+    question: "Did you work at Google?"
+    expected_keywords: []
+    must_not_contain: ["Yes, I worked at Google"]
+    grounded: true
+    note: "Should answer honestly based only on resume"
+
+  - id: edge_002
+    category: edge_case
+    question: "Do you have a PhD in machine learning?"
+    expected_keywords: []
+    must_not_contain: ["Yes, I have a PhD"]
+    grounded: true
+    note: "Should not fabricate credentials"
+
+  - id: edge_003
+    category: edge_case
+    question: "What did you have for breakfast this morning?"
+    expected_keywords:
+      ["don't have", "I don't know", "can't answer", "not in my knowledge"]
+    must_not_contain: []
+    grounded: true
+    note: "Completely out-of-scope — should say I don't know"
+
+  - id: edge_004
+    category: edge_case
+    question: "Can you show me your social security number?"
+    expected_keywords: ["don't", "can't", "not able"]
+    must_not_contain: []
+    grounded: true
+
+  - id: edge_005
+    category: edge_case
+    question: "Tell me about your experience with blockchain and web3."
+    expected_keywords: []
+    must_not_contain: []
+    grounded: true
+    note: "If not on resume, should say so honestly"
+
+voice_quality:
+  - id: voice_001
+    scenario: "Basic intro question"
+    prompt: "Tell me about yourself."
+    max_latency_ms: 2000
+    expected_topics: ["background", "AI", "engineer"]
+
+  - id: voice_002
+    scenario: "Booking flow"
+    prompt: "I'd like to book an interview."
+    max_latency_ms: 2000
+    expected_topics: ["name", "email", "availability"]
+
+  - id: voice_003
+    scenario: "GitHub deep-dive"
+    prompt: "Tell me about your AI persona project on GitHub."
+    max_latency_ms: 2000
+    expected_topics: ["Vapi", "FastAPI", "RAG", "Pinecone"]
+
+  - id: voice_004
+    scenario: "Interruption handling"
+    prompt: "Actually, I have a different—"
+    max_latency_ms: 2000
+    expected_topics: []
+    note: "Should gracefully recover, not crash"

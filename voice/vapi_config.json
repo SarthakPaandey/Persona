@@ -1,0 +1,124 @@
+{
+  "name": "AI Persona - {{PERSONA_NAME}}",
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "temperature": 0.3,
+    "systemPrompt": "You are the AI voice representative of {{PERSONA_NAME}}, a {{PERSONA_ROLE}}.\n\nKeep responses to 2-3 sentences for voice. Be warm, specific, and never make up facts.\n\nUse your tools to look up background information, check calendar availability, and book meetings.\n\nFor booking: collect the caller's name and email first, then propose slots, then confirm using book_meeting."
+  },
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "{{ELEVENLABS_VOICE_ID}}",
+    "stability": 0.5,
+    "similarityBoost": 0.75
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2",
+    "language": "en-US"
+  },
+  "firstMessage": "Hi, you've reached the AI representative for {{PERSONA_NAME}}. I can tell you about their background and experience, and I can book an interview directly on their calendar. What would you like to know?",
+  "endCallMessage": "Thanks for calling! If you'd like to follow up, you can also chat at {{CHAT_URL}}. Have a great day.",
+  "endCallPhrases": [
+    "goodbye",
+    "bye",
+    "talk later",
+    "that's all",
+    "thank you bye"
+  ],
+  "recordingEnabled": true,
+  "hipaaEnabled": false,
+  "silenceTimeoutSeconds": 20,
+  "maxDurationSeconds": 600,
+  "backgroundSound": "off",
+  "backchannelingEnabled": true,
+  "analysisPlan": {
+    "summaryPrompt": "Summarize this call in 2-3 sentences. Note whether a booking was made and any key topics discussed.",
+    "successEvaluationPrompt": "Did the call end with either (a) a confirmed booking or (b) the caller getting the information they needed? Answer 'success' or 'failure' with one sentence of reasoning.",
+    "successEvaluationRubric": "PassFail",
+    "structuredDataSchema": {
+      "type": "object",
+      "properties": {
+        "booking_made": { "type": "boolean" },
+        "caller_name": { "type": "string" },
+        "caller_email": { "type": "string" },
+        "topics_discussed": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "name": "get_background_info",
+      "description": "Retrieve information about background, skills, experience, or specific GitHub projects. Use this whenever the caller asks about skills, projects, experience, education, or 'why are you right for this role'.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "The caller's question, verbatim or paraphrased."
+          }
+        },
+        "required": ["question"]
+      },
+      "async": false,
+      "serverUrl": "YOUR_BACKEND_URL/api/voice/vapi/webhook"
+    },
+    {
+      "name": "get_availability",
+      "description": "Fetch real calendar availability for the next 7 days. Use this when the caller asks about scheduling, availability, or wants to book.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "async": false,
+      "serverUrl": "YOUR_BACKEND_URL/api/voice/vapi/webhook"
+    },
+    {
+      "name": "book_meeting",
+      "description": "Book a meeting on the calendar. Only call this after collecting the caller's name, email, and a confirmed time slot.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Caller's full name."
+          },
+          "email": {
+            "type": "string",
+            "description": "Caller's email address."
+          },
+          "datetime": {
+            "type": "string",
+            "description": "ISO 8601 datetime string for the meeting start time, e.g. 2024-03-15T14:00:00Z."
+          }
+        },
+        "required": ["name", "email", "datetime"]
+      },
+      "async": false,
+      "serverUrl": "YOUR_BACKEND_URL/api/voice/vapi/webhook"
+    },
+    {
+      "name": "get_github_info",
+      "description": "Get detailed information about a specific GitHub repository - tech stack, purpose, architecture decisions, and tradeoffs.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "repo_name": {
+            "type": "string",
+            "description": "The repository name as it appears on GitHub."
+          },
+          "question": {
+            "type": "string",
+            "description": "The specific question about the repo."
+          }
+        },
+        "required": ["repo_name"]
+      },
+      "async": false,
+      "serverUrl": "YOUR_BACKEND_URL/api/voice/vapi/webhook"
+    }
+  ]
+}
