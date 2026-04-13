@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Creates or updates the Vapi assistant using the Vapi REST API.
-Run once to register the assistant and phone number.
+Creates or updates the Vapi assistant using the modern Tools API.
+Run once to register tools, attach them to the assistant, and assign the phone number.
 
 Usage:
     cd voice
@@ -27,108 +27,324 @@ PERSONA_NAME = os.getenv("PERSONA_NAME", "AI Candidate")
 PERSONA_ROLE = os.getenv("PERSONA_ROLE", "AI Engineer")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")
 
+WEBHOOK_URL = f"{BACKEND_URL}/api/voice/vapi/webhook"
 
-def load_config() -> dict:
-    config_path = Path(__file__).parent / "vapi_config.json"
-    with open(config_path) as f:
-        config = json.load(f)
+# ── Tool definitions (new Vapi Tools API format) ──────────────────────
 
-    replacements = {
-        "YOUR_BACKEND_URL": BACKEND_URL,
-        "{{PERSONA_NAME}}": PERSONA_NAME,
-        "{{PERSONA_ROLE}}": PERSONA_ROLE,
-        "{{CHAT_URL}}": CHAT_URL,
-        "{{ELEVENLABS_VOICE_ID}}": ELEVENLABS_VOICE_ID,
-    }
+TOOL_DEFINITIONS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_background_info",
+            "description": (
+                "Retrieve information about background, skills, experience, "
+                "or specific GitHub projects. Use this whenever the caller asks "
+                "about skills, projects, experience, education, or "
+                "'why are you right for this role'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "The caller's question, verbatim or paraphrased.",
+                    }
+                },
+                "required": ["question"],
+            },
+        },
+        "server": {"url": WEBHOOK_URL},
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_availability",
+            "description": (
+                "Fetch real calendar availability for the next 7 days. "
+                "Use this when the caller asks about scheduling, availability, "
+                "or wants to book."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+        "server": {"url": WEBHOOK_URL},
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "book_meeting",
+            "description": (
+                "Book a meeting on the calendar. Only call this after "
+                "collecting the caller's name, email, and a confirmed time slot."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Caller's full name.",
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Caller's email address.",
+                    },
+                    "datetime": {
+                        "type": "string",
+                        "description": "ISO 8601 datetime string for the meeting start time, e.g. 2024-03-15T14:00:00Z.",
+                    },
+                },
+                "required": ["name", "email", "datetime"],
+            },
+        },
+        "server": {"url": WEBHOOK_URL},
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_github_info",
+            "description": (
+                "Get detailed information about a specific GitHub repository — "
+                "tech stack, purpose, architecture decisions, and tradeoffs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_name": {
+                        "type": "string",
+                        "description": "The repository name as it appears on GitHub.",
+                    },
+                    "question": {
+                        "type": "string",
+                        "description": "The specific question about the repo.",
+                    },
+                },
+                "required": ["repo_name"],
+            },
+        },
+        "server": {"url": WEBHOOK_URL},
+    },
+]
 
-    config_text = json.dumps(config)
-    for old, new in replacements.items():
-        config_text = config_text.replace(old, new)
-    config = json.loads(config_text)
 
-    for fn in config.get("functions", []):
-        fn["serverUrl"] = fn["serverUrl"].replace(
-            "YOUR_BACKEND_URL", BACKEND_URL
-        )
-
-    return config
-
-
-def create_or_update_assistant(config: dict) -> str:
-    headers = {
+def get_headers():
+    return {
         "Authorization": f"Bearer {VAPI_API_KEY}",
         "Content-Type": "application/json",
     }
 
-    with httpx.Client() as client:
-        if EXISTING_ASSISTANT_ID:
-            print(f"Updating existing assistant: {EXISTING_ASSISTANT_ID}")
-            res = client.patch(
-                f"{VAPI_API_BASE}/assistant/{EXISTING_ASSISTANT_ID}",
-                headers=headers,
-                json=config,
-                timeout=20,
-            )
-        else:
-            print("Creating new assistant...")
-            res = client.post(
-                f"{VAPI_API_BASE}/assistant",
-                headers=headers,
-                json=config,
-                timeout=20,
-            )
 
-        res.raise_for_status()
-        assistant = res.json()
-        assistant_id = assistant["id"]
-        print(f"Assistant ID: {assistant_id}")
-        return assistant_id
+def list_existing_tools(client: httpx.Client) -> list:
+    """List all tools in the account."""
+    res = client.get(f"{VAPI_API_BASE}/tool", headers=get_headers(), timeout=20)
+    res.raise_for_status()
+    return res.json()
 
 
-def assign_phone_number(assistant_id: str):
-    if not PHONE_NUMBER_ID:
-        print("No VAPI_PHONE_NUMBER_ID set - skipping phone assignment.")
-        return
+def delete_tool(client: httpx.Client, tool_id: str):
+    """Delete a tool by ID."""
+    res = client.delete(
+        f"{VAPI_API_BASE}/tool/{tool_id}", headers=get_headers(), timeout=20
+    )
+    res.raise_for_status()
 
-    headers = {
-        "Authorization": f"Bearer {VAPI_API_KEY}",
-        "Content-Type": "application/json",
+
+def create_tool(client: httpx.Client, tool_def: dict) -> dict:
+    """Create a new tool via the Vapi API."""
+    res = client.post(
+        f"{VAPI_API_BASE}/tool",
+        headers=get_headers(),
+        json=tool_def,
+        timeout=20,
+    )
+    res.raise_for_status()
+    return res.json()
+
+
+def create_or_replace_tools(client: httpx.Client) -> list:
+    """
+    Delete any existing tools whose function name matches ours,
+    then create fresh ones. Returns a list of tool IDs.
+    """
+    our_names = {t["function"]["name"] for t in TOOL_DEFINITIONS}
+
+    existing = list_existing_tools(client)
+    for tool in existing:
+        fn = tool.get("function", {})
+        if fn.get("name") in our_names:
+            print(f"  Deleting old tool: {fn['name']} ({tool['id']})")
+            delete_tool(client, tool["id"])
+
+    tool_ids = []
+    for tool_def in TOOL_DEFINITIONS:
+        created = create_tool(client, tool_def)
+        fn_name = created.get("function", {}).get("name", "?")
+        print(f"  Created tool: {fn_name} → {created['id']}")
+        tool_ids.append(created["id"])
+
+    return tool_ids
+
+
+def build_assistant_config(tool_ids: list) -> dict:
+    """Build the assistant JSON using the new toolIds model field."""
+    system_prompt = (
+        f"You are RORI, Captain {PERSONA_NAME}'s loyal ship AI.\n\n"
+        f'If asked who you are, say: "I am RORI, Captain {PERSONA_NAME}\'s loyal ship AI."\n\n'
+        "Keep responses to 2-3 sentences for voice. Be warm, specific, and never make up facts.\n\n"
+        "Grounding rules (critical):\n"
+        "- For any question about projects, GitHub, resume, skills, experience, education, or role fit, "
+        "call get_background_info first and answer only from the returned result.\n"
+        "- If a specific repository is named, call get_github_info with repo_name plus the user's question.\n"
+        "- Never invent project names, dates, company details, or achievements.\n"
+        '- If information is unavailable, say: "I don\'t have that specific information in my datacore right now." '
+        "Then offer verified highlights.\n\n"
+        "Use your tools to look up background information, check calendar availability, and book meetings.\n\n"
+        "For booking: collect the caller's name and email first, then propose slots, "
+        "then confirm using book_meeting."
+    )
+
+    return {
+        "name": f"AI Persona - {PERSONA_NAME}",
+        "model": {
+            "provider": "groq",
+            "model": "llama-3.1-8b-instant",
+            "temperature": 0.3,
+            "systemPrompt": system_prompt,
+            "toolIds": tool_ids,
+        },
+        "voice": {
+            "provider": "11labs",
+            "voiceId": ELEVENLABS_VOICE_ID,
+            "model": "eleven_flash_v2_5",
+            "stability": 0.5,
+            "similarityBoost": 0.75,
+        },
+        "transcriber": {
+            "provider": "deepgram",
+            "model": "nova-2",
+            "language": "en-US",
+        },
+        "firstMessage": (
+            f"I am RORI, Captain {PERSONA_NAME}'s loyal ship AI. "
+            "I can tell you about his resume highlights, GitHub projects, role fit, "
+            "and schedule a rendezvous. Set course and ask me about his projects, "
+            "experience, or why he is the right fit."
+        ),
+        "endCallMessage": (
+            f"Thanks for calling! If you'd like to follow up, you can also chat at {CHAT_URL}. "
+            "Have a great day."
+        ),
+        "endCallPhrases": ["goodbye", "bye", "talk later", "that's all", "thank you bye"],
+        "recordingEnabled": True,
+        "hipaaEnabled": False,
+        "silenceTimeoutSeconds": 20,
+        "maxDurationSeconds": 600,
+        "backgroundSound": "off",
+        "backchannelingEnabled": True,
+        "serverUrl": WEBHOOK_URL,
+        "analysisPlan": {
+            "summaryPrompt": (
+                "Summarize this call in 2-3 sentences. Note whether a booking "
+                "was made and any key topics discussed."
+            ),
+            "successEvaluationPrompt": (
+                "Did the call end with either (a) a confirmed booking or "
+                "(b) the caller getting the information they needed? "
+                "Answer 'success' or 'failure' with one sentence of reasoning."
+            ),
+            "successEvaluationRubric": "PassFail",
+            "structuredDataSchema": {
+                "type": "object",
+                "properties": {
+                    "booking_made": {"type": "boolean"},
+                    "caller_name": {"type": "string"},
+                    "caller_email": {"type": "string"},
+                    "topics_discussed": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+            },
+        },
     }
 
-    with httpx.Client() as client:
+
+def create_or_update_assistant(client: httpx.Client, config: dict) -> str:
+    """Create or update the Vapi assistant."""
+    if EXISTING_ASSISTANT_ID:
+        print(f"Updating existing assistant: {EXISTING_ASSISTANT_ID}")
         res = client.patch(
-            f"{VAPI_API_BASE}/phone-number/{PHONE_NUMBER_ID}",
-            headers=headers,
-            json={"assistantId": assistant_id},
+            f"{VAPI_API_BASE}/assistant/{EXISTING_ASSISTANT_ID}",
+            headers=get_headers(),
+            json=config,
             timeout=20,
         )
-        res.raise_for_status()
-        data = res.json()
-        print(f"Phone number assigned: {data.get('number', 'unknown')}")
+    else:
+        print("Creating new assistant...")
+        res = client.post(
+            f"{VAPI_API_BASE}/assistant",
+            headers=get_headers(),
+            json=config,
+            timeout=20,
+        )
+
+    res.raise_for_status()
+    assistant = res.json()
+    assistant_id = assistant["id"]
+    print(f"Assistant ID: {assistant_id}")
+    return assistant_id
 
 
-def list_phone_numbers():
-    """Helper to see which phone numbers are available."""
-    headers = {"Authorization": f"Bearer {VAPI_API_KEY}"}
-    with httpx.Client() as client:
-        res = client.get(f"{VAPI_API_BASE}/phone-number", headers=headers)
-        res.raise_for_status()
-        numbers = res.json()
-        print("\nAvailable phone numbers:")
-        for n in numbers:
-            print(f"  ID: {n['id']}  Number: {n.get('number', 'N/A')}  "
-                  f"Assistant: {n.get('assistantId', 'unassigned')}")
+def assign_phone_number(client: httpx.Client, assistant_id: str):
+    if not PHONE_NUMBER_ID:
+        print("No VAPI_PHONE_NUMBER_ID set — skipping phone assignment.")
+        return
 
+    res = client.patch(
+        f"{VAPI_API_BASE}/phone-number/{PHONE_NUMBER_ID}",
+        headers=get_headers(),
+        json={"assistantId": assistant_id},
+        timeout=20,
+    )
+    res.raise_for_status()
+    data = res.json()
+    print(f"Phone number assigned: {data.get('number', 'unknown')}")
+
+
+def list_phone_numbers(client: httpx.Client):
+    res = client.get(f"{VAPI_API_BASE}/phone-number", headers=get_headers())
+    res.raise_for_status()
+    numbers = res.json()
+    print("\nAvailable phone numbers:")
+    for n in numbers:
+        print(
+            f"  ID: {n['id']}  Number: {n.get('number', 'N/A')}  "
+            f"Assistant: {n.get('assistantId', 'unassigned')}"
+        )
+
+
+# ── Main ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     if not VAPI_API_KEY:
         print("ERROR: VAPI_API_KEY not set in .env")
         sys.exit(1)
 
-    config = load_config()
-    assistant_id = create_or_update_assistant(config)
-    assign_phone_number(assistant_id)
-    list_phone_numbers()
+    print(f"Backend webhook URL: {WEBHOOK_URL}\n")
+
+    with httpx.Client() as client:
+        print("1. Creating tools...")
+        tool_ids = create_or_replace_tools(client)
+        print(f"   Tool IDs: {tool_ids}\n")
+
+        print("2. Building assistant config...")
+        config = build_assistant_config(tool_ids)
+
+        print("3. Pushing assistant to Vapi...")
+        assistant_id = create_or_update_assistant(client, config)
+
+        print("\n4. Assigning phone number...")
+        assign_phone_number(client, assistant_id)
+
+        list_phone_numbers(client)
 
     print("\n✅ Vapi setup complete!")
     print(f"   Add to your .env:  VAPI_ASSISTANT_ID={assistant_id}")

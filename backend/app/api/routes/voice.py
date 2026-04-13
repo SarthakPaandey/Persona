@@ -2,7 +2,7 @@
 
 import asyncio
 import structlog
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Request
 
@@ -20,7 +20,8 @@ async def vapi_webhook(request: Request):
     Handle Vapi webhook events.
 
     Vapi sends various event types:
-    - function-call: When the assistant calls a defined function
+    - tool-calls: Modern format — when the assistant calls a defined tool
+    - function-call: Legacy format — older assistants still use this
     - end-of-call-report: Call summary
     - status-update: Call status changes
     - assistant-request: Dynamic assistant configuration
@@ -30,8 +31,14 @@ async def vapi_webhook(request: Request):
 
     logger.info("Vapi webhook received", type=message_type)
 
+    # ── Modern Tools API (tool-calls) ──────────────────────────────
+    if message_type == "tool-calls":
+        return await _handle_tool_calls(request, body)
+
+    # ── Legacy function-call (kept for backward compat) ────────────
     if message_type == "function-call":
         return await _handle_function_call(request, body)
+
     if message_type == "assistant-request":
         return _handle_assistant_request(request)
     if message_type == "end-of-call-report":
@@ -43,27 +50,67 @@ async def vapi_webhook(request: Request):
     return {"status": "ok"}
 
 
+# ── Modern tool-calls handler ──────────────────────────────────────────
+
+async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
+    """
+    Handle the modern Vapi 'tool-calls' message.
+
+    Vapi sends:
+        message.toolCallList = [{ id, name, arguments }, ...]
+
+    We must respond:
+        { "results": [{ "toolCallId": "...", "result": "..." }, ...] }
+    """
+    tool_call_list = body["message"].get("toolCallList", [])
+
+    results: List[Dict[str, str]] = []
+    for tool_call in tool_call_list:
+        call_id = tool_call.get("id", "")
+        fn_name = tool_call.get("name", "")
+        arguments = tool_call.get("arguments", {})
+
+        logger.info("Tool call", id=call_id, name=fn_name, args=arguments)
+
+        result_text = await _dispatch_function(request, fn_name, arguments)
+        results.append({"toolCallId": call_id, "result": result_text})
+
+    return {"results": results}
+
+
+# ── Legacy function-call handler ───────────────────────────────────────
+
 async def _handle_function_call(request: Request, body: Dict[str, Any]):
-    """Handle function calls from Vapi assistant."""
+    """Handle the legacy Vapi 'function-call' message format."""
     function_call = body["message"]["functionCall"]
     function_name = function_call["name"]
     parameters = function_call.get("parameters", {})
 
-    logger.info("Function call", name=function_name, params=parameters)
+    logger.info("Legacy function call", name=function_name, params=parameters)
 
-    if function_name == "get_background_info":
-        return await _get_background_info(request, parameters)
-    if function_name == "get_availability":
+    result_text = await _dispatch_function(request, function_name, parameters)
+    return {"result": result_text}
+
+
+# ── Shared dispatcher ──────────────────────────────────────────────────
+
+async def _dispatch_function(request: Request, fn_name: str, params: Dict[str, Any]) -> str:
+    """Route a tool/function call to the right handler and return a plain string result."""
+    if fn_name == "get_background_info":
+        return await _get_background_info(request, params)
+    if fn_name == "get_availability":
         return await _get_availability(request)
-    if function_name == "book_meeting":
-        return await _book_meeting(request, parameters)
-    if function_name == "get_github_info":
-        return await _get_github_info(request, parameters)
+    if fn_name == "book_meeting":
+        return await _book_meeting(request, params)
+    if fn_name == "get_github_info":
+        return await _get_github_info(request, params)
 
-    return {"result": "I don't have that capability yet."}
+    return "I don't have that capability yet."
 
 
-async def _get_background_info(request: Request, parameters: Dict[str, Any]):
+# ── Tool implementations ──────────────────────────────────────────────
+
+async def _get_background_info(request: Request, parameters: Dict[str, Any]) -> str:
     """Retrieve background info via RAG."""
     rag_engine: RAGEngine = request.app.state.rag_engine
     query = parameters.get("question", "Tell me about yourself")
@@ -72,38 +119,38 @@ async def _get_background_info(request: Request, parameters: Dict[str, Any]):
             rag_engine.query(query=query, conversation_history=[]),
             timeout=RAG_QUERY_TIMEOUT_SECONDS,
         )
-        return {"result": response.answer}
+        return response.answer
     except asyncio.TimeoutError:
         logger.warning("Background info query timed out", timeout_seconds=RAG_QUERY_TIMEOUT_SECONDS)
-        return {
-            "result": "I am having trouble loading that detail right now. "
+        return (
+            "I am having trouble loading that detail right now. "
             "Please ask a shorter question, or I can summarize key highlights first."
-        }
+        )
     except Exception as e:
         logger.error("Background info query failed", error=str(e))
-        return {
-            "result": "I ran into a temporary issue fetching that information. "
+        return (
+            "I ran into a temporary issue fetching that information. "
             "Could you try again in a moment?"
-        }
+        )
 
 
-async def _get_availability(request: Request):
+async def _get_availability(request: Request) -> str:
     """Get real calendar availability."""
     settings = request.app.state.settings
     calendar_service = CalendarService(settings)
 
     try:
         availability = await calendar_service.get_availability()
-        return {"result": availability}
+        return availability
     except Exception as e:
         logger.error("Failed to get availability", error=str(e))
-        return {
-            "result": "I'm having trouble accessing my calendar right now. "
+        return (
+            "I'm having trouble accessing my calendar right now. "
             f"You can book directly at https://cal.com/{settings.calcom_username}"
-        }
+        )
 
 
-async def _book_meeting(request: Request, parameters: Dict[str, Any]):
+async def _book_meeting(request: Request, parameters: Dict[str, Any]) -> str:
     """Book a meeting on the calendar."""
     settings = request.app.state.settings
     calendar_service = CalendarService(settings)
@@ -114,28 +161,28 @@ async def _book_meeting(request: Request, parameters: Dict[str, Any]):
         datetime_str = parameters.get("datetime", "")
 
         if not all([name, email, datetime_str]):
-            return {
-                "result": "I need your name, email, and preferred time to book. "
+            return (
+                "I need your name, email, and preferred time to book. "
                 "Could you provide those?"
-            }
+            )
 
         await calendar_service.create_booking(
             name=name, email=email, start_time=datetime_str
         )
 
-        return {
-            "result": f"Great! I've booked a meeting for {name} at {datetime_str}. "
+        return (
+            f"Great! I've booked a meeting for {name} at {datetime_str}. "
             f"A confirmation has been sent to {email}."
-        }
+        )
     except Exception as e:
         logger.error("Failed to book meeting", error=str(e))
-        return {
-            "result": "I had trouble booking that slot. "
+        return (
+            "I had trouble booking that slot. "
             f"Please try booking directly at https://cal.com/{settings.calcom_username}"
-        }
+        )
 
 
-async def _get_github_info(request: Request, parameters: Dict[str, Any]):
+async def _get_github_info(request: Request, parameters: Dict[str, Any]) -> str:
     """Get info about GitHub repos via RAG."""
     rag_engine: RAGEngine = request.app.state.rag_engine
     repo_name = parameters.get("repo_name", "")
@@ -148,24 +195,26 @@ async def _get_github_info(request: Request, parameters: Dict[str, Any]):
             ),
             timeout=RAG_QUERY_TIMEOUT_SECONDS,
         )
-        return {"result": response.answer}
+        return response.answer
     except asyncio.TimeoutError:
         logger.warning(
             "GitHub info query timed out",
             repo_name=repo_name,
             timeout_seconds=RAG_QUERY_TIMEOUT_SECONDS,
         )
-        return {
-            "result": "I am having trouble loading GitHub details right now. "
+        return (
+            "I am having trouble loading GitHub details right now. "
             "I can share a high-level summary, or you can ask about a specific repository file or feature."
-        }
+        )
     except Exception as e:
         logger.error("GitHub info query failed", repo_name=repo_name, error=str(e))
-        return {
-            "result": "I hit a temporary issue while checking that repository. "
+        return (
+            "I hit a temporary issue while checking that repository. "
             "Please try again in a moment."
-        }
+        )
 
+
+# ── Other webhook handlers ────────────────────────────────────────────
 
 def _handle_assistant_request(request: Request):
     """Provide dynamic assistant configuration."""
@@ -245,7 +294,7 @@ GROUNDING AND TOOL RULES (CRITICAL):
 8. Do not invent project names, companies, dates, or achievements
 9. Handle interruptions gracefully — if cut off, acknowledge and continue
 
-AVAILABLE FUNCTIONS:
+AVAILABLE TOOLS:
 - get_background_info: Retrieve information about background, skills, experience
 - get_availability: Check real calendar availability
 - book_meeting: Book a meeting (needs name, email, datetime)
