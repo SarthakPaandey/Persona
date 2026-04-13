@@ -25,7 +25,7 @@ SARTHAK_PROFILE = """
 CAPTAIN SARTHAK PANDEY — PROFILE BRIEF (use this to answer any question)
 
 Role target: AI/ML Engineer at Scaler (or similar AI-first company)
-Current student: B.Tech Computer Science, LPU (Scaler AI/ML Program, 2023-2027)
+Current student: Bachelor of Science in  CS, Scaler School Of Technology, enrolled 2023 (Scaler AI/ML track)
 
 TECHNICAL SKILLS:
 - Languages: Python (production-quality, async, typed), TypeScript, JavaScript
