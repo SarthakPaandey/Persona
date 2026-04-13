@@ -24,6 +24,7 @@ class RepoInfo:
     readme_content: str
     tech_stack: List[str]
     last_updated: str
+    pushed_at: str
     is_fork: bool
 
 
@@ -77,6 +78,7 @@ class GitHubService:
             readme_content=readme_content,
             tech_stack=tech_stack,
             last_updated=repo.updated_at.isoformat(),
+            pushed_at=repo.pushed_at.isoformat() if repo.pushed_at else repo.updated_at.isoformat(),
             is_fork=repo.fork,
         )
 
@@ -150,6 +152,7 @@ Primary Language: {repo.language}
 Tech Stack: {', '.join(repo.tech_stack)}
 Topics: {', '.join(repo.topics)}
 Stars: {repo.stars}
+Last Code Push: {repo.pushed_at}
 Last Updated: {repo.last_updated}
 
 README:

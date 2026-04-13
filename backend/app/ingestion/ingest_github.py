@@ -17,7 +17,7 @@ def _create_repos_summary(repos) -> str:
     for repo in repos:
         lines.append(f"• {repo.name}: {repo.description}")
         lines.append(f"  Tech: {', '.join(repo.tech_stack[:5])}")
-        lines.append(f"  Last Updated: {repo.last_updated}")
+        lines.append(f"  Last Code Push: {repo.pushed_at}")
         lines.append(f"  URL: {repo.url}")
         lines.append("")
 
@@ -60,6 +60,7 @@ def ingest_github(settings: Settings, vector_store_manager: VectorStoreManager):
                 "language": repo.language,
                 "tech_stack": ", ".join(repo.tech_stack[:10]),
                 "last_updated": repo.last_updated,
+                "pushed_at": repo.pushed_at,
             },
         )
         all_chunks.extend(chunks)

@@ -33,10 +33,19 @@ github_exclude_repos:
   - SarthakPaandey
   - Randomproj
   - HabitTracker
+  - Filmticketbooking
+  - BOOKMY-show
+  - MongoDB
+  - Express
+  - Nodetutorial
+  - classesreact
+  - Sstclasses
 
 # Flagship / AI-relevant repos — retrieval boosts these so they beat random similarity hits (e.g. small JS demos)
 github_showcase_repos:
+  - portfolio
   - FinTracker
+  - FlowEx
   - MrBully
   - StoryTeller
   - VectorAI

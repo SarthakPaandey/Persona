@@ -158,6 +158,7 @@ class RAGEngine:
         """
         Pure vector search can surface unrelated small repos. Merge in a second retrieval biased toward
         AI/ML + flagship repo names, then rank showcase repos first.
+        For 'latest/recent' queries, do an extra-wide retrieval to ensure recently-pushed repos surface.
         """
         raw = self._persona.config.get("github_showcase_repos") or []
         if not isinstance(raw, list) or not raw:
@@ -166,17 +167,34 @@ class RAGEngine:
         if not showcase or not self._is_project_query(query):
             return docs_with_scores
 
-        bias_q = (
-            f"{query} artificial intelligence machine learning LLM RAG agents "
-            f"embeddings Pinecone LangChain production {' '.join(sorted(showcase))}"
-        )
-        try:
-            extra = self.vector_store.similarity_search_with_score(
-                bias_q, k=min(24, len(showcase) + 14)
+        q_lower = query.lower()
+        is_recent = any(w in q_lower for w in ("recent", "latest", "newest", "current", "last updated"))
+
+        # For recency queries, search for each showcase repo by name so they
+        # are guaranteed to enter the candidate pool (similarity search for
+        # "latest github projects" won't match them by content).
+        extra: List[tuple] = []
+        if is_recent:
+            for repo_name in sorted(showcase):
+                try:
+                    hits = self.vector_store.similarity_search_with_score(
+                        f"GitHub Repository: {repo_name}", k=2
+                    )
+                    extra.extend(hits)
+                except Exception:
+                    pass
+        else:
+            bias_q = (
+                f"{query} artificial intelligence machine learning LLM RAG agents "
+                f"embeddings Pinecone LangChain production {' '.join(sorted(showcase))}"
             )
-        except Exception as e:
-            logger.warning("showcase boost search failed", error=str(e))
-            extra = []
+            try:
+                extra = self.vector_store.similarity_search_with_score(
+                    bias_q, k=min(24, len(showcase) + 14)
+                )
+            except Exception as e:
+                logger.warning("showcase boost search failed", error=str(e))
+                extra = []
 
         def doc_key(doc: Document) -> tuple:
             return (doc.metadata.get("source", ""), doc.page_content[:160])
@@ -197,18 +215,16 @@ class RAGEngine:
 
         items = list(best.values())
 
-        q_lower = query.lower()
-        is_recent = any(w in q_lower for w in ("recent", "latest", "newest", "current", "last updated"))
-
         def rank(item: tuple) -> tuple:
             doc, score = item
             repo = (doc.metadata.get("repo_name") or "").strip()
-            
             pri = 1 if repo in showcase else 0
 
             if is_recent:
-                date_str = doc.metadata.get("last_updated", "1970-01-01")
-                return (pri, date_str, score)
+                # For "latest" queries, date is the PRIMARY sort key so the
+                # most recently pushed repos always surface first.
+                date_str = doc.metadata.get("pushed_at") or doc.metadata.get("last_updated", "1970-01-01")
+                return (date_str, pri, score)
 
             return (pri, score)
 
