@@ -36,8 +36,14 @@ async def chat(request: Request, chat_request: ChatRequest):
 
     try:
         conversation_history = chat_request.conversation_history or []
-        is_booking_intent = _detect_booking_intent(chat_request.message)
-        is_booking_flow = is_booking_intent or _is_booking_context(conversation_history)
+        is_role_fit_query = _is_role_fit_query(chat_request.message)
+        is_booking_intent = (
+            _detect_booking_intent(chat_request.message) and not is_role_fit_query
+        )
+        is_booking_flow = (
+            is_booking_intent
+            or _is_booking_context(chat_request.message, conversation_history)
+        ) and not is_role_fit_query
         rejected_slots = _is_slot_rejection(chat_request.message)
         available_slots = []
         timezone = None
@@ -157,24 +163,21 @@ If calendar data is unavailable, share the direct booking link.
 
 def _detect_booking_intent(message: str) -> bool:
     """Detect if the user wants to book a meeting/call."""
-    booking_keywords = [
-        "book",
-        "schedule",
-        "meeting",
-        "call",
-        "interview",
-        "availability",
-        "available",
-        "calendar",
-        "slot",
-        "time",
-        "free",
-        "meet",
-        "set up",
-        "arrange",
+    message_lower = (message or "").lower()
+    booking_patterns = [
+        r"\bbook(?:ing)?\b",
+        r"\bschedule\b",
+        r"\bmeeting\b",
+        r"\binterview\b",
+        r"\bcalendar\b",
+        r"\bslot(?:s)?\b",
+        r"\bset\s+up\b",
+        r"\barrange\b",
+        r"\bavailability\b",
+        r"\b(book|schedule)\b.*\b(call|meeting|interview|slot)\b",
+        r"\b(call|meeting|interview|slot)\b.*\b(book|schedule)\b",
     ]
-    message_lower = message.lower()
-    return any(keyword in message_lower for keyword in booking_keywords)
+    return any(re.search(pattern, message_lower) for pattern in booking_patterns)
 
 
 def _is_slot_rejection(message: str) -> bool:
@@ -195,12 +198,19 @@ def _is_slot_rejection(message: str) -> bool:
     return any(marker in m for marker in rejection_markers)
 
 
-def _is_booking_context(conversation_history: list) -> bool:
-    """Detect whether recent conversation indicates an ongoing booking flow."""
+def _is_booking_context(message: str, conversation_history: list) -> bool:
+    """Continue booking flow only when the latest user message is booking-related."""
     if not conversation_history:
         return False
 
-    markers = [
+    if _assistant_requested_email(conversation_history):
+        return not _is_new_non_booking_question(message)
+
+    assistant_message = _latest_assistant_message(conversation_history)
+    if not assistant_message:
+        return False
+
+    booking_prompt_markers = [
         "book",
         "booking",
         "interview",
@@ -209,13 +219,118 @@ def _is_booking_context(conversation_history: list) -> bool:
         "cal.com",
         "confirm interview slot",
         "name and email",
+        "full name and email",
+        "preferred time",
     ]
+    assistant_lower = assistant_message.lower()
+    assistant_is_booking_prompt = any(
+        marker in assistant_lower for marker in booking_prompt_markers
+    )
+    if not assistant_is_booking_prompt:
+        return False
 
-    for item in conversation_history[-6:]:
-        content = str(getattr(item, "content", "")).lower()
-        if any(marker in content for marker in markers):
-            return True
-    return False
+    return _is_booking_followup_message(message)
+
+
+def _latest_assistant_message(conversation_history: list) -> str:
+    """Return the latest assistant content in history if present."""
+    for item in reversed(conversation_history):
+        role = str(getattr(item, "role", "")).lower()
+        if role == "assistant":
+            return str(getattr(item, "content", ""))
+    return ""
+
+
+def _is_booking_followup_message(message: str) -> bool:
+    """Detect user replies that should stay in booking mode."""
+    if not message:
+        return False
+
+    lowered = message.lower().strip()
+    if _extract_first_email(message):
+        return True
+    if _detect_booking_intent(message):
+        return True
+
+    if re.search(r"\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b", lowered):
+        return True
+    if re.search(
+        r"\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+        lowered,
+    ):
+        return True
+
+    short_booking_confirms = {
+        "yes",
+        "yep",
+        "sure",
+        "ok",
+        "okay",
+        "book it",
+        "confirm",
+        "that works",
+        "works",
+    }
+    return lowered in short_booking_confirms
+
+
+def _is_role_fit_query(message: str) -> bool:
+    """Detect role-fit/hireability questions that should not trigger booking flow."""
+    q = (message or "").lower()
+    role_fit_markers = [
+        "right fit",
+        "good fit",
+        "fit for this role",
+        "fit for the role",
+        "why should we hire",
+        "why hire",
+        "why him",
+        "why is he",
+        "why is she",
+        "for this role",
+    ]
+    if any(marker in q for marker in role_fit_markers):
+        return True
+    return ("fit" in q and "role" in q) or ("why" in q and "role" in q)
+
+
+def _is_new_non_booking_question(message: str) -> bool:
+    """Detect clear topic shifts that should exit booking follow-up mode."""
+    lowered = (message or "").lower().strip()
+    if not lowered:
+        return False
+    if _detect_booking_intent(message) or _is_booking_followup_message(message):
+        return False
+
+    question_cues = [
+        "?",
+        "why ",
+        "what ",
+        "how ",
+        "who ",
+        "when ",
+        "where ",
+        "tell me",
+        "explain",
+        "can you",
+        "could you",
+    ]
+    if any(cue in lowered for cue in question_cues):
+        return True
+
+    non_booking_topics = [
+        "project",
+        "github",
+        "repo",
+        "resume",
+        "experience",
+        "skills",
+        "background",
+        "right fit",
+        "good fit",
+        "for this role",
+    ]
+    return any(topic in lowered for topic in non_booking_topics)
 
 
 def _assistant_requested_email(conversation_history: list) -> bool:

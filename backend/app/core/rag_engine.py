@@ -197,9 +197,17 @@ class RAGEngine:
 
         items = list(best.values())
 
+        q_lower = query.lower()
+        is_recent = any(w in q_lower for w in ("recent", "latest", "newest", "current", "last updated"))
+
         def rank(item: tuple) -> tuple:
             doc, score = item
             repo = (doc.metadata.get("repo_name") or "").strip()
+            
+            if is_recent:
+                date_str = doc.metadata.get("last_updated", "1970-01-01")
+                return (date_str, score)
+
             pri = 1 if repo in showcase else 0
             return (pri, score)
 

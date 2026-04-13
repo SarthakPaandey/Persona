@@ -201,6 +201,33 @@ def test_chat_booking_followup_uses_context_without_keyword(
     instance.get_available_slots.assert_awaited_once()
 
 
+def test_chat_role_fit_question_does_not_trigger_booking_flow(
+    client_with_mocks,
+    mock_rag_engine,
+):
+    with patch("app.api.routes.chat.CalendarService") as MockCal:
+        res = client_with_mocks.post(
+            "/api/chat",
+            json={
+                "message": "Why is he the right fit for this role?",
+                "conversation_history": [
+                    {"role": "user", "content": "Can I book an interview?"},
+                    {
+                        "role": "assistant",
+                        "content": "I can help with booking. Please share your full name and email address.",
+                    },
+                ],
+            },
+        )
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("booking_link") is None
+    assert data.get("available_slots", []) == []
+    MockCal.assert_not_called()
+    mock_rag_engine.query.assert_awaited_once()
+
+
 def test_health_endpoint(client_with_mocks):
     res = client_with_mocks.get("/health")
     assert res.status_code == 200

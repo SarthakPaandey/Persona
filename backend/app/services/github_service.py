@@ -40,7 +40,7 @@ class GitHubService:
         user = self.github.get_user(self.username)
         repos = []
 
-        for repo in user.get_repos(type="public", sort="updated"):
+        for repo in user.get_repos(type="public", sort="updated", direction="desc"):
             if repo.fork:
                 continue
 
