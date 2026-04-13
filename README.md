@@ -63,8 +63,7 @@ python voice/setup_vapi.py
 2. Fill `.env` with real OpenAI, Pinecone, Cal.com, GitHub, Vapi, and ElevenLabs credentials.
 3. Run ingestion so the persona is grounded on current resume and GitHub data.
 4. Deploy backend and frontend, then rerun `python voice/setup_vapi.py` with the production `BACKEND_URL`.
-5. Run the evals, then `python evals/generate_report.py` to refresh `evals/report/eval_report.md`, and export it to PDF with real metrics.
-6. Put the final public chat URL, phone number, and PDF link in your submission.
+5. Put the final public chat URL, phone number, and any submission PDFs in your submission.
 
 ## Helpful Docs
 

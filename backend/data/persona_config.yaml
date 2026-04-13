@@ -73,7 +73,6 @@ target_role_requirements: |
   - Agentic frameworks: LangGraph, LangChain, LlamaIndex, CrewAI, or AutoGen
   - Voice AI: Vapi, Retell, ElevenLabs, Deepgram, or Twilio
   - RAG pipelines: vector DBs (Pinecone, Chroma, Weaviate), chunking, retrieval strategies
-  - Evals: LLM-as-judge, RAGAS, custom harnesses; you measure quality, not just vibe-check
 
   Mindset
   - You have shipped an AI agent to real users, not just a notebook

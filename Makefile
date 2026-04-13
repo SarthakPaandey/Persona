@@ -1,4 +1,4 @@
-.PHONY: setup ingest run-backend run-frontend run-all test eval deploy clean
+.PHONY: setup ingest run-backend run-frontend run-all test deploy clean
 
 setup:
 	cd backend && pip install -r requirements.txt
@@ -22,8 +22,6 @@ test:
 	cd backend && python3 -m pytest tests/ -v
 	cd frontend && npm test
 
-eval:
-	cd evals && python run_evals.py
 
 deploy:
 	./scripts/deploy.sh

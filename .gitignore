@@ -27,4 +27,3 @@ Thumbs.db
 
 # Data
 backend/data/resume.pdf
-evals/results/*.json

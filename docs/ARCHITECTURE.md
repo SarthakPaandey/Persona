@@ -224,19 +224,6 @@ Retrieval uses cosine similarity scores from Pinecone. Chunks below `similarity_
 
 ---
 
-## Evals and quality signals
-
-| Surface | Automation | Location |
-|---------|------------|----------|
-| Chat groundedness | YAML cases + judge LLM + keyword rules | `evals/eval_chat_groundedness.py` |
-| Voice analytics | Vapi call list + first-bot latency | `evals/eval_voice_quality.py` |
-| Booking E2E | HTTP health → availability → book | `evals/eval_booking_flow.py` |
-| One-page report | Generated from JSON artifacts | `evals/generate_report.py` → `evals/report/eval_report.md` |
-
-Use `EVAL_JUDGE_PROVIDER=groq` when the OpenAI key is unset or invalid but `GROQ_API_KEY` is configured (judge runs locally, not on Railway).
-
----
-
 ## Related docs
 
 - [API Reference](API.md)

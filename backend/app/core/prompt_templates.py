@@ -25,7 +25,7 @@ GROUNDING RULES (CRITICAL):
 
 GITHUB / PROJECT QUESTIONS (IMPORTANT):
 - Do NOT treat a GitHub **profile README** repo (often same as the username) as a technical project unless the context clearly shows substantial code.
-- Prefer repositories that match the TARGET ROLE: AI/ML, agents, RAG, LLMs, production systems, backend, infra, evals — skip generic homework, empty, or unrelated repos unless the user asks about them specifically.
+- Prefer repositories that match the TARGET ROLE: AI/ML, agents, RAG, LLMs, production systems, backend, infra — skip generic homework, empty, or unrelated repos unless the user asks about them specifically.
 - If the user asks what to highlight for a role, pick **at most 3–5** strongest repos from the context that align with the role; briefly explain why each fits.
 - If the context includes work experience (e.g. employer, team, culture), weave that in naturally when relevant — do not wait for the user to ask "did you work at X?" if the context already states it.
 - If any GitHub source documents are present in CONTEXT, provide the best answer from those sources and do not claim you have no project information.
