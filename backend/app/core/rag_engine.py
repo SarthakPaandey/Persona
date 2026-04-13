@@ -120,7 +120,13 @@ class RAGEngine:
         source_docs = self._build_source_documents(retrieved_docs)
 
         async def _token_stream() -> AsyncIterator[str]:
-            async for token in stream_chat_tokens(self.llm, messages):
+            async for token in stream_chat_tokens(
+                self.llm,
+                messages,
+                first_token_timeout_seconds=int(
+                    getattr(self.settings, "llm_stream_first_token_timeout_seconds", 0)
+                ),
+            ):
                 yield token
 
         return RAGStreamResult(

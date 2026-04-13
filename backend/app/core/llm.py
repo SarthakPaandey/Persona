@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any, AsyncIterator, List, Sequence, Union
 
@@ -16,6 +17,9 @@ from app.config import Settings
 logger = structlog.get_logger()
 DEFAULT_PROVIDER_ORDER = ("nvidia", "modelscope", "groq", "openai")
 RATE_LIMIT_COOLDOWN_SECONDS = 300
+ALL_PROVIDERS_ON_COOLDOWN_ERROR = (
+    "All configured LLM providers are on cooldown after rate limits."
+)
 _provider_cooldowns: dict[str, float] = {}
 
 
@@ -23,7 +27,18 @@ def _provider_id(model: BaseChatModel) -> str:
     """Build a stable provider/model identifier for cooldown tracking."""
     model_name = getattr(model, "model_name", getattr(model, "model", "unknown-model"))
     api_base = getattr(model, "openai_api_base", "")
-    return f"{api_base}|{model_name}"
+    raw_key = getattr(model, "openai_api_key", "")
+    key_getter = getattr(raw_key, "get_secret_value", None)
+    api_key = ""
+    if callable(key_getter):
+        try:
+            api_key = str(key_getter() or "")
+        except Exception:
+            api_key = ""
+    else:
+        api_key = str(raw_key or "")
+    key_fingerprint = api_key[-8:] if api_key else "no-key"
+    return f"{api_base}|{model_name}|{key_fingerprint}"
 
 
 def _is_rate_limit_error(error: Exception) -> bool:
@@ -115,6 +130,41 @@ def _provider_order(settings: Settings) -> list[str]:
     return providers or list(DEFAULT_PROVIDER_ORDER)
 
 
+def _split_csv(raw: str) -> list[str]:
+    """Split comma-separated env values into trimmed non-empty items."""
+    return [item.strip() for item in (raw or "").split(",") if item.strip()]
+
+
+def _unique(values: Sequence[str]) -> list[str]:
+    """Keep first occurrence order while removing duplicates/empties."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for value in values:
+        cleaned = (value or "").strip()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        out.append(cleaned)
+    return out
+
+
+def _groq_api_keys(settings: Settings) -> list[str]:
+    """Primary + backup Groq keys (comma-separated in GROQ_API_KEYS)."""
+    return _unique([settings.groq_api_key, *_split_csv(settings.groq_api_keys)])
+
+
+def _groq_models(settings: Settings) -> list[str]:
+    """Primary + backup Groq models (comma-separated in GROQ_MODEL_CANDIDATES)."""
+    return _unique([settings.groq_model, *_split_csv(settings.groq_model_candidates)])
+
+
+def _nvidia_chat_models(settings: Settings) -> list[str]:
+    """Primary + fallback NVIDIA chat models (comma-separated candidates)."""
+    return _unique(
+        [settings.nvidia_chat_model, *_split_csv(settings.nvidia_chat_model_candidates)]
+    )
+
+
 class FallbackChatLLM(BaseChatModel):
     """Try chat models in order until one succeeds (rate limits, outages, etc.)."""
 
@@ -149,7 +199,7 @@ class FallbackChatLLM(BaseChatModel):
                 logger.warning("llm_fallback_invoke", attempt=i + 1, error=str(e)[:300])
                 last = e
         if not attempted:
-            raise RuntimeError("All configured LLM providers are on cooldown after rate limits.")
+            raise RuntimeError(ALL_PROVIDERS_ON_COOLDOWN_ERROR)
         assert last is not None
         raise last
 
@@ -178,7 +228,7 @@ class FallbackChatLLM(BaseChatModel):
                 logger.warning("llm_fallback_ainvoke", attempt=i + 1, error=str(e)[:300])
                 last = e
         if not attempted:
-            raise RuntimeError("All configured LLM providers are on cooldown after rate limits.")
+            raise RuntimeError(ALL_PROVIDERS_ON_COOLDOWN_ERROR)
         assert last is not None
         raise last
 
@@ -202,14 +252,15 @@ def get_llm(settings: Settings, temperature: float = 0.35) -> BaseChatModel:
             nk = _nvidia_chat_api_key(settings)
             if not nk:
                 continue
-            models.append(
-                ChatOpenAI(
-                    model=settings.nvidia_chat_model,
-                    openai_api_key=nk,
-                    openai_api_base=settings.nvidia_chat_base.rstrip("/"),
-                    **common,
+            for model_name in _nvidia_chat_models(settings):
+                models.append(
+                    ChatOpenAI(
+                        model=model_name,
+                        openai_api_key=nk,
+                        openai_api_base=settings.nvidia_chat_base.rstrip("/"),
+                        **common,
+                    )
                 )
-            )
             continue
 
         if provider == "modelscope":
@@ -228,16 +279,20 @@ def get_llm(settings: Settings, temperature: float = 0.35) -> BaseChatModel:
             continue
 
         if provider == "groq":
-            if not settings.groq_api_key.strip():
+            groq_keys = _groq_api_keys(settings)
+            groq_models = _groq_models(settings)
+            if not (groq_keys and groq_models):
                 continue
-            models.append(
-                ChatOpenAI(
-                    model=settings.groq_model,
-                    openai_api_key=settings.groq_api_key,
-                    openai_api_base=settings.groq_api_base.rstrip("/"),
-                    **common,
-                )
-            )
+            for model_name in groq_models:
+                for key in groq_keys:
+                    models.append(
+                        ChatOpenAI(
+                            model=model_name,
+                            openai_api_key=key,
+                            openai_api_base=settings.groq_api_base.rstrip("/"),
+                            **common,
+                        )
+                    )
             continue
 
         if provider == "openai" and _openai_key_usable(settings):
@@ -248,6 +303,7 @@ def get_llm(settings: Settings, temperature: float = 0.35) -> BaseChatModel:
                     **common,
                 )
             )
+            continue
 
     if not models:
         raise ValueError(
@@ -259,6 +315,7 @@ def get_llm(settings: Settings, temperature: float = 0.35) -> BaseChatModel:
         "llm_chain_built",
         provider_order=providers,
         active_models=len(models),
+        active_model_names=[getattr(m, "model_name", "unknown") for m in models],
     )
 
     if len(models) == 1:
@@ -270,6 +327,7 @@ def get_llm(settings: Settings, temperature: float = 0.35) -> BaseChatModel:
 async def stream_chat_tokens(
     llm: BaseChatModel,
     messages: Sequence[BaseMessage],
+    first_token_timeout_seconds: int = 0,
     **kwargs: Any,
 ) -> AsyncIterator[str]:
     """Yield streamed token chunks, with fallback support before any token is emitted."""
@@ -290,15 +348,26 @@ async def stream_chat_tokens(
         attempted = True
         emitted = False
         try:
-            async for chunk in model.astream(messages, **kwargs):
-                token = _content_to_text(getattr(chunk, "content", ""))
-                if not token:
-                    continue
+            async for token in _stream_tokens_with_first_token_timeout(
+                model,
+                messages,
+                first_token_timeout_seconds=first_token_timeout_seconds,
+                **kwargs,
+            ):
                 emitted = True
                 yield token
             if emitted:
                 return
             raise ValueError("LLM returned empty streamed content")
+        except asyncio.TimeoutError as exc:
+            _mark_provider_rate_limited(model)
+            logger.warning(
+                "llm_first_token_timeout",
+                attempt=idx + 1,
+                provider=_provider_id(model),
+                timeout_seconds=first_token_timeout_seconds,
+            )
+            last_error = exc
         except Exception as exc:
             if _is_rate_limit_error(exc):
                 _mark_provider_rate_limited(model)
@@ -313,7 +382,42 @@ async def stream_chat_tokens(
             last_error = exc
 
     if not attempted:
-        raise RuntimeError("All configured LLM providers are on cooldown after rate limits.")
+        raise RuntimeError(ALL_PROVIDERS_ON_COOLDOWN_ERROR)
     if last_error is not None:
         raise last_error
     raise ValueError("No streaming-capable LLM configured")
+
+
+async def _stream_tokens_with_first_token_timeout(
+    model: BaseChatModel,
+    messages: Sequence[BaseMessage],
+    first_token_timeout_seconds: int,
+    **kwargs: Any,
+) -> AsyncIterator[str]:
+    """Stream tokens from one model with optional timeout for first token."""
+    iterator = model.astream(messages, **kwargs).__aiter__()
+    timeout_seconds = max(0, int(first_token_timeout_seconds))
+
+    if timeout_seconds > 0:
+        first_token = await asyncio.wait_for(
+            _read_first_non_empty_token(iterator),
+            timeout=timeout_seconds,
+        )
+    else:
+        first_token = await _read_first_non_empty_token(iterator)
+
+    yield first_token
+
+    async for chunk in iterator:
+        token = _content_to_text(getattr(chunk, "content", ""))
+        if token:
+            yield token
+
+
+async def _read_first_non_empty_token(iterator: AsyncIterator[Any]) -> str:
+    """Read the first non-empty token from a stream iterator."""
+    async for chunk in iterator:
+        token = _content_to_text(getattr(chunk, "content", ""))
+        if token:
+            return token
+    raise ValueError("LLM returned empty streamed content")

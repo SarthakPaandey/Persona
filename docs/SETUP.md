@@ -21,6 +21,11 @@ cp .env.example .env
 Open `.env` and fill in every key. See the table below.
 
 Latency tip: set `LLM_PROVIDER_ORDER=groq,nvidia,modelscope,openai` to try Groq first for faster chat generation.
+For burst traffic/rate limits, set `GROQ_API_KEYS` (comma-separated backup keys) and
+`GROQ_MODEL_CANDIDATES=llama-3.3-70b-versatile` while keeping
+`GROQ_MODEL=llama-3.1-8b-instant` as the low-latency primary.
+If streaming feels stuck before first token, set `LLM_STREAM_FIRST_TOKEN_TIMEOUT_SECONDS=6`
+to fail over quickly to the next provider/model.
 
 ### 2. API Keys you need
 

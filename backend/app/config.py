@@ -40,11 +40,17 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "qwen/qwen3-32b"
     groq_api_base: str = "https://api.groq.com/openai/v1"
+    # Optional comma-separated backup Groq keys for automatic rotation on 429/rate limits.
+    groq_api_keys: str = ""
+    # Optional comma-separated fallback Groq models (tried after GROQ_MODEL).
+    groq_model_candidates: str = ""
 
     # NVIDIA NIM chat (OpenAI-compatible /v1/chat/completions). Uses same nvapi key as embeddings if nvidia_chat_api_key empty.
     nvidia_chat_api_key: str = ""
     nvidia_chat_base: str = "https://integrate.api.nvidia.com/v1"
     nvidia_chat_model: str = "meta/llama-3.1-70b-instruct"
+    # Optional comma-separated NVIDIA chat fallback models (for example: google/gemma-2-9b-it).
+    nvidia_chat_model_candidates: str = ""
 
     # ModelScope chat fallback (e.g. stepfun-ai/Step-3.5-Flash). Reuses embedding token/base if these are empty.
     modelscope_chat_api_key: str = ""
@@ -84,6 +90,7 @@ class Settings(BaseSettings):
     # with finish_reason="length".
     llm_max_tokens: int = 1200
     llm_request_timeout_seconds: int = 20
+    llm_stream_first_token_timeout_seconds: int = 6
     # Ordered chat provider chain (comma-separated): nvidia, modelscope, groq, openai
     # Example for low latency: "groq,nvidia,modelscope,openai" or "groq".
     llm_provider_order: str = "nvidia,modelscope,groq,openai"
@@ -104,10 +111,12 @@ class Settings(BaseSettings):
         )
         ms_chat_key = (self.modelscope_chat_api_key or self.embedding_api_key or "").strip()
         ms_chat_base = (self.modelscope_chat_base or self.embedding_api_base or "").strip()
+        groq_extra_keys = [k.strip() for k in (self.groq_api_keys or "").split(",") if k.strip()]
         oa = (self.openai_api_key or "").strip()
         oa_ok = bool(oa and not oa.startswith("sk-...") and len(oa) > 12)
         has_llm = bool(
             (self.groq_api_key or "").strip()
+            or groq_extra_keys
             or oa_ok
             or nv_chat
             or (ms_chat_key and ms_chat_base)
