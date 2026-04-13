@@ -33,7 +33,7 @@ async def vapi_webhook(request: Request):
     if message_type == "function-call":
         return await _handle_function_call(request, body)
     if message_type == "assistant-request":
-        return await _handle_assistant_request(request, body)
+        return _handle_assistant_request(request)
     if message_type == "end-of-call-report":
         return _handle_call_report(body)
     if message_type == "status-update":
@@ -167,7 +167,7 @@ async def _get_github_info(request: Request, parameters: Dict[str, Any]):
         }
 
 
-async def _handle_assistant_request(request: Request, body: Dict[str, Any]):
+def _handle_assistant_request(request: Request):
     """Provide dynamic assistant configuration."""
     settings = request.app.state.settings
 
