@@ -60,6 +60,33 @@ Send a message and receive a RAG-grounded response.
 
 ---
 
+## `POST /api/chat/stream`
+
+Send a message and receive NDJSON events for token-by-token rendering.
+
+**Request**
+
+Same payload as `POST /api/chat`.
+
+**Response (stream, `application/x-ndjson`)**
+
+Each line is one JSON object:
+
+```json
+{ "type": "token", "token": "I" }
+{ "type": "token", "token": " can" }
+{ "type": "token", "token": " help" }
+{ "type": "done", "response": { "message": "I can help...", "sources": [] } }
+```
+
+Possible event shapes:
+
+- `{"type":"token","token":"..."}` incremental text chunk
+- `{"type":"done","response":ChatResponse}` final structured payload (same shape as `/api/chat`)
+- `{"type":"error","error":"..."}` streamed error detail
+
+---
+
 ## `GET /api/calendar/availability`
 
 Fetch available time slots for the next 7 days.

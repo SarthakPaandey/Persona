@@ -1,15 +1,17 @@
 """RAG (Retrieval-Augmented Generation) engine."""
 
+from __future__ import annotations
+
 import structlog
 from dataclasses import dataclass, field
-from typing import List
+from typing import AsyncIterator, List
 
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_pinecone import PineconeVectorStore
 
 from app.config import Settings
-from app.core.llm import get_llm
+from app.core.llm import get_llm, stream_chat_tokens
 from app.core.prompt_templates import format_chat_prompt
 from app.models.schemas import ConversationMessage
 from app.services.persona_service import PersonaService
@@ -45,6 +47,15 @@ class RAGResult:
     confidence: float = 0.0
 
 
+@dataclass
+class RAGStreamResult:
+    """Prepared stream response with token iterator and grounding metadata."""
+
+    token_stream: AsyncIterator[str]
+    source_documents: List[Document] = field(default_factory=list)
+    confidence: float = 0.0
+
+
 class RAGEngine:
     """
     RAG pipeline that retrieves relevant documents from the vector store
@@ -66,6 +77,65 @@ class RAGEngine:
         """Process a query through the RAG pipeline."""
         logger.info("RAG query", query=query[:100])
 
+        messages, retrieved_docs = await self._prepare_messages(
+            query=query,
+            conversation_history=conversation_history,
+            additional_context=additional_context,
+        )
+
+        response = await self.llm.ainvoke(messages)
+
+        confidence = self._calculate_confidence(retrieved_docs)
+
+        logger.info(
+            "RAG response generated",
+            query=query[:50],
+            num_sources=len(retrieved_docs),
+            confidence=confidence,
+        )
+
+        source_docs = self._build_source_documents(retrieved_docs)
+
+        return RAGResult(
+            answer=_aimessage_content_to_str(getattr(response, "content", None)),
+            source_documents=source_docs,
+            confidence=confidence,
+        )
+
+    async def stream_query(
+        self,
+        query: str,
+        conversation_history: List[ConversationMessage],
+        additional_context: str = "",
+    ) -> RAGStreamResult:
+        """Prepare a streamed RAG response for incremental UI rendering."""
+        logger.info("RAG stream query", query=query[:100])
+
+        messages, retrieved_docs = await self._prepare_messages(
+            query=query,
+            conversation_history=conversation_history,
+            additional_context=additional_context,
+        )
+        confidence = self._calculate_confidence(retrieved_docs)
+        source_docs = self._build_source_documents(retrieved_docs)
+
+        async def _token_stream() -> AsyncIterator[str]:
+            async for token in stream_chat_tokens(self.llm, messages):
+                yield token
+
+        return RAGStreamResult(
+            token_stream=_token_stream(),
+            source_documents=source_docs,
+            confidence=confidence,
+        )
+
+    async def _prepare_messages(
+        self,
+        query: str,
+        conversation_history: List[ConversationMessage],
+        additional_context: str,
+    ) -> tuple[List[SystemMessage | HumanMessage], List[tuple]]:
+        """Build model messages and retrieval context once for sync and streaming modes."""
         retrieved_docs = await self._retrieve(query)
         retrieved_docs = self._filter_excluded_github(retrieved_docs, query)
         context = self._format_context(retrieved_docs)
@@ -100,35 +170,22 @@ class RAGEngine:
             github_showcase_repos=showcase_str,
         )
 
-        messages = [
+        messages: List[SystemMessage | HumanMessage] = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=query),
         ]
+        return messages, retrieved_docs
 
-        response = await self.llm.ainvoke(messages)
-
-        confidence = self._calculate_confidence(retrieved_docs)
-
-        logger.info(
-            "RAG response generated",
-            query=query[:50],
-            num_sources=len(retrieved_docs),
-            confidence=confidence,
-        )
-
+    def _build_source_documents(self, docs_with_scores: List[tuple]) -> List[Document]:
+        """Attach retrieval score metadata to source docs."""
         source_docs: List[Document] = []
-        for doc, score in retrieved_docs:
+        for doc, score in docs_with_scores:
             merged = Document(
                 page_content=doc.page_content,
                 metadata={**doc.metadata, "score": float(score)},
             )
             source_docs.append(merged)
-
-        return RAGResult(
-            answer=_aimessage_content_to_str(getattr(response, "content", None)),
-            source_documents=source_docs,
-            confidence=confidence,
-        )
+        return source_docs
 
     def _is_project_query(self, query: str) -> bool:
         q = query.lower()

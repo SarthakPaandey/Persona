@@ -1,14 +1,17 @@
 """Chat endpoint for the web interface."""
 
+import json
+from dataclasses import dataclass
 from datetime import datetime
 import re
-from typing import Optional
+from typing import AsyncIterator, Optional
 from zoneinfo import ZoneInfo
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
-from app.core.rag_engine import RAGEngine
+from app.core.rag_engine import RAGEngine, RAGStreamResult
 from app.models.schemas import ChatRequest, ChatResponse, SourceDocument
 from app.services.calendar_service import CalendarService
 
@@ -19,7 +22,25 @@ DEFAULT_BOOKING_TIMEZONE = "Asia/Kolkata"
 EMAIL_PATTERN = re.compile(r"\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[A-Za-z]{2,}\b")
 
 
-@router.post("/chat", response_model=ChatResponse)
+@dataclass
+class PreparedChatContext:
+    """Normalized booking/context state shared by sync and streaming endpoints."""
+
+    conversation_history: list
+    is_booking_flow: bool
+    rejected_slots: bool
+    available_slots: list
+    timezone: Optional[str]
+    booking_link: Optional[str]
+    booking_context: str = ""
+    early_response: Optional[ChatResponse] = None
+
+
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    responses={500: {"description": "Failed to process message"}},
+)
 async def chat(request: Request, chat_request: ChatRequest):
     """
     Process a chat message through the RAG pipeline.
@@ -35,67 +56,269 @@ async def chat(request: Request, chat_request: ChatRequest):
     settings = request.app.state.settings
 
     try:
-        conversation_history = chat_request.conversation_history or []
-        is_role_fit_query = _is_role_fit_query(chat_request.message)
-        is_booking_intent = (
-            _detect_booking_intent(chat_request.message) and not is_role_fit_query
-        )
-        is_booking_flow = (
-            is_booking_intent
-            or _is_booking_context(chat_request.message, conversation_history)
-        ) and not is_role_fit_query
-        rejected_slots = _is_slot_rejection(chat_request.message)
-        available_slots = []
-        timezone = None
-        booking_link = None
-        booking_context = ""
+        prepared = await _prepare_chat_context(chat_request, settings)
+        if prepared.early_response is not None:
+            return prepared.early_response
 
-        if is_booking_flow:
-            calendar_service = CalendarService(settings)
-            timezone = _resolve_timezone(
-                chat_request.timezone,
-                getattr(settings, "calcom_timezone", DEFAULT_BOOKING_TIMEZONE),
+        if prepared.is_booking_flow:
+            response = await rag_engine.query(
+                query=chat_request.message,
+                conversation_history=prepared.conversation_history,
+                additional_context=prepared.booking_context,
             )
-            booking_link = f"https://cal.com/{settings.calcom_username}"
+        else:
+            response = await rag_engine.query(
+                query=chat_request.message,
+                conversation_history=prepared.conversation_history,
+            )
 
-            if _assistant_requested_email(conversation_history) and not _extract_first_email(
-                chat_request.message
-            ):
-                return ChatResponse(
-                    message=_build_invalid_email_message(
-                        timezone=timezone,
-                        booking_link=booking_link,
-                    ),
-                    sources=[],
-                    conversation_id=chat_request.conversation_id,
-                    booking_link=booking_link,
-                    available_slots=[],
-                    timezone=timezone,
+        message = _finalize_message(
+            query=chat_request.message,
+            answer=response.answer,
+            source_documents=response.source_documents,
+            prepared=prepared,
+            settings=settings,
+        )
+
+        return _build_chat_response(
+            message=message,
+            source_documents=response.source_documents,
+            conversation_id=chat_request.conversation_id,
+            booking_link=prepared.booking_link,
+            available_slots=prepared.available_slots,
+            timezone=prepared.timezone,
+        )
+
+    except Exception as e:
+        logger.exception("Chat endpoint error")
+        raise HTTPException(status_code=500, detail=_chat_error_detail(settings, e)) from e
+
+
+@router.post(
+    "/chat/stream",
+    responses={500: {"description": "Failed to process message"}},
+)
+async def chat_stream(request: Request, chat_request: ChatRequest):
+    """Stream chat tokens as NDJSON for lower perceived latency in the UI."""
+    rag_engine: RAGEngine = request.app.state.rag_engine
+    settings = request.app.state.settings
+
+    try:
+        prepared = await _prepare_chat_context(chat_request, settings)
+    except Exception as exc:
+        logger.exception("Chat stream setup error")
+        raise HTTPException(status_code=500, detail=_chat_error_detail(settings, exc)) from exc
+
+    async def event_stream() -> AsyncIterator[str]:
+        try:
+            if prepared.early_response is not None:
+                yield _ndjson_event(
+                    {
+                        "type": "done",
+                        "response": prepared.early_response.model_dump(mode="json"),
+                    }
                 )
+                return
 
-            if rejected_slots:
-                availability = (
-                    "The user said the currently shown slots do not work for them. "
-                    "Do not repeat those slots as available. Ask for their preferred time window "
-                    "(for example evening IST) and then guide them to the booking link."
+            if prepared.is_booking_flow:
+                stream_result: RAGStreamResult = await rag_engine.stream_query(
+                    query=chat_request.message,
+                    conversation_history=prepared.conversation_history,
+                    additional_context=prepared.booking_context,
                 )
             else:
-                try:
-                    available_slots = await calendar_service.get_available_slots(
-                        timezone=timezone
-                    )
-                    availability = _summarize_available_slots(
-                        available_slots,
-                        timezone=timezone,
-                    )
-                except Exception as exc:
-                    logger.warning("Calendar context unavailable", error=str(exc))
-                    availability = (
-                        "Calendar availability could not be loaded right now. "
-                        "Offer the direct booking link as a fallback."
-                    )
+                stream_result = await rag_engine.stream_query(
+                    query=chat_request.message,
+                    conversation_history=prepared.conversation_history,
+                )
 
-            booking_context = f"""
+            chunks: list[str] = []
+            async for token in stream_result.token_stream:
+                chunks.append(token)
+                yield _ndjson_event({"type": "token", "token": token})
+
+            message = _finalize_message(
+                query=chat_request.message,
+                answer="".join(chunks),
+                source_documents=stream_result.source_documents,
+                prepared=prepared,
+                settings=settings,
+            )
+            final_response = _build_chat_response(
+                message=message,
+                source_documents=stream_result.source_documents,
+                conversation_id=chat_request.conversation_id,
+                booking_link=prepared.booking_link,
+                available_slots=prepared.available_slots,
+                timezone=prepared.timezone,
+            )
+            yield _ndjson_event(
+                {
+                    "type": "done",
+                    "response": final_response.model_dump(mode="json"),
+                }
+            )
+        except Exception as exc:
+            logger.exception("Chat stream error")
+            yield _ndjson_event(
+                {
+                    "type": "error",
+                    "error": _chat_error_detail(settings, exc),
+                }
+            )
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+def _chat_error_detail(settings, error: Exception) -> str:
+    """Return safe error details (verbose only in development)."""
+    if settings.environment == "development":
+        return f"{type(error).__name__}: {error}"[:1000]
+    return "Failed to process message"
+
+
+def _ndjson_event(payload: dict) -> str:
+    """Serialize one NDJSON event line."""
+    return json.dumps(payload, ensure_ascii=False) + "\n"
+
+
+def _build_chat_response(
+    *,
+    message: str,
+    source_documents: list,
+    conversation_id: Optional[str],
+    booking_link: Optional[str],
+    available_slots: list,
+    timezone: Optional[str],
+) -> ChatResponse:
+    """Construct a standard ChatResponse payload."""
+    return ChatResponse(
+        message=message,
+        sources=[
+            SourceDocument(
+                content=doc.page_content[:200],
+                source=doc.metadata.get("source", "unknown"),
+                relevance_score=doc.metadata.get("score", 0.0),
+            )
+            for doc in source_documents
+        ],
+        conversation_id=conversation_id,
+        booking_link=booking_link,
+        available_slots=available_slots,
+        timezone=timezone,
+    )
+
+
+def _finalize_message(
+    *,
+    query: str,
+    answer: str,
+    source_documents: list,
+    prepared: PreparedChatContext,
+    settings,
+) -> str:
+    """Apply deterministic post-processing to assistant output."""
+    message = _sanitize_github_project_answer(
+        query=query,
+        answer=answer,
+        source_documents=source_documents,
+    )
+
+    if prepared.is_booking_flow and (
+        prepared.rejected_slots or _is_verbose_slot_dump(message)
+    ):
+        return _build_compact_booking_message(
+            available_slots=prepared.available_slots,
+            timezone=prepared.timezone or DEFAULT_BOOKING_TIMEZONE,
+            booking_link=prepared.booking_link or f"https://cal.com/{settings.calcom_username}",
+            rejected_slots=prepared.rejected_slots,
+        )
+    return message
+
+
+async def _prepare_chat_context(chat_request: ChatRequest, settings) -> PreparedChatContext:
+    """Prepare booking flow state and additional context for RAG execution."""
+    conversation_history = chat_request.conversation_history or []
+    is_role_fit_query = _is_role_fit_query(chat_request.message)
+    is_booking_intent = _detect_booking_intent(chat_request.message) and not is_role_fit_query
+    is_booking_flow = (
+        is_booking_intent or _is_booking_context(chat_request.message, conversation_history)
+    ) and not is_role_fit_query
+
+    rejected_slots = _is_slot_rejection(chat_request.message)
+    available_slots: list = []
+    timezone: Optional[str] = None
+    booking_link: Optional[str] = None
+    booking_context = ""
+
+    if not is_booking_flow:
+        return PreparedChatContext(
+            conversation_history=conversation_history,
+            is_booking_flow=False,
+            rejected_slots=False,
+            available_slots=available_slots,
+            timezone=timezone,
+            booking_link=booking_link,
+        )
+
+    calendar_service = CalendarService(settings)
+    timezone = _resolve_timezone(
+        chat_request.timezone,
+        getattr(settings, "calcom_timezone", DEFAULT_BOOKING_TIMEZONE),
+    )
+    booking_link = f"https://cal.com/{settings.calcom_username}"
+
+    if _assistant_requested_email(conversation_history) and not _extract_first_email(
+        chat_request.message
+    ):
+        return PreparedChatContext(
+            conversation_history=conversation_history,
+            is_booking_flow=True,
+            rejected_slots=rejected_slots,
+            available_slots=[],
+            timezone=timezone,
+            booking_link=booking_link,
+            early_response=ChatResponse(
+                message=_build_invalid_email_message(
+                    timezone=timezone,
+                    booking_link=booking_link,
+                ),
+                sources=[],
+                conversation_id=chat_request.conversation_id,
+                booking_link=booking_link,
+                available_slots=[],
+                timezone=timezone,
+            ),
+        )
+
+    if rejected_slots:
+        availability = (
+            "The user said the currently shown slots do not work for them. "
+            "Do not repeat those slots as available. Ask for their preferred time window "
+            "(for example evening IST) and then guide them to the booking link."
+        )
+    else:
+        try:
+            available_slots = await calendar_service.get_available_slots(timezone=timezone)
+            availability = _summarize_available_slots(
+                available_slots,
+                timezone=timezone,
+            )
+        except Exception as exc:
+            logger.warning("Calendar context unavailable", error=str(exc))
+            availability = (
+                "Calendar availability could not be loaded right now. "
+                "Offer the direct booking link as a fallback."
+            )
+
+    booking_context = f"""
 The user wants to book a meeting. Here are bookable windows currently returned by Cal.com:
 {availability}
 
@@ -112,53 +335,16 @@ Before confirming any booking, ask for the user's full name and email address ex
 If the chat widget is visible, ask them to fill the name and email fields and click "Confirm Interview Slot".
 If calendar data is unavailable, share the direct booking link.
 """
-            response = await rag_engine.query(
-                query=chat_request.message,
-                conversation_history=conversation_history,
-                additional_context=booking_context,
-            )
-        else:
-            response = await rag_engine.query(
-                query=chat_request.message,
-                conversation_history=conversation_history,
-            )
 
-        message = _sanitize_github_project_answer(
-            query=chat_request.message,
-            answer=response.answer,
-            source_documents=response.source_documents,
-        )
-
-        if is_booking_flow and (rejected_slots or _is_verbose_slot_dump(message)):
-            message = _build_compact_booking_message(
-                available_slots=available_slots,
-                timezone=timezone or DEFAULT_BOOKING_TIMEZONE,
-                booking_link=booking_link or f"https://cal.com/{settings.calcom_username}",
-                rejected_slots=rejected_slots,
-            )
-
-        return ChatResponse(
-            message=message,
-            sources=[
-                SourceDocument(
-                    content=doc.page_content[:200],
-                    source=doc.metadata.get("source", "unknown"),
-                    relevance_score=doc.metadata.get("score", 0.0),
-                )
-                for doc in response.source_documents
-            ],
-            conversation_id=chat_request.conversation_id,
-            booking_link=booking_link,
-            available_slots=available_slots,
-            timezone=timezone,
-        )
-
-    except Exception as e:
-        logger.exception("Chat endpoint error")
-        detail = "Failed to process message"
-        if settings.environment == "development":
-            detail = f"{type(e).__name__}: {e}"[:1000]
-        raise HTTPException(status_code=500, detail=detail) from e
+    return PreparedChatContext(
+        conversation_history=conversation_history,
+        is_booking_flow=True,
+        rejected_slots=rejected_slots,
+        available_slots=available_slots,
+        timezone=timezone,
+        booking_link=booking_link,
+        booking_context=booking_context,
+    )
 
 
 def _detect_booking_intent(message: str) -> bool:

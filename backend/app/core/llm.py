@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Sequence, Union
+from typing import Any, AsyncIterator, List, Sequence, Union
 
 import structlog
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 
 from app.config import Settings
 
 logger = structlog.get_logger()
+DEFAULT_PROVIDER_ORDER = ("nvidia", "modelscope", "groq", "openai")
 
 
 def _nvidia_chat_api_key(settings: Settings) -> str:
@@ -37,18 +37,12 @@ def _openai_key_usable(settings: Settings) -> bool:
     return len(k) > 20
 
 
-def _chat_result_text(result: ChatResult) -> str:
-    """Extract a plain-text payload from a chat result."""
-    if not result.generations:
+def _content_to_text(content: object) -> str:
+    """Normalize model content payloads (str or multimodal list) to plain text."""
+    if content is None:
         return ""
-
-    generation = result.generations[0]
-    message = getattr(generation, "message", None)
-    content = getattr(message, "content", "")
-
     if isinstance(content, str):
         return content
-
     if isinstance(content, list):
         parts: list[str] = []
         for block in content:
@@ -59,8 +53,39 @@ def _chat_result_text(result: ChatResult) -> str:
             else:
                 parts.append(str(block))
         return "".join(parts)
+    return str(content)
 
-    return str(content or "")
+
+def _chat_result_text(result: ChatResult) -> str:
+    """Extract a plain-text payload from a chat result."""
+    if not result.generations:
+        return ""
+
+    generation = result.generations[0]
+    message = getattr(generation, "message", None)
+    content = getattr(message, "content", "")
+
+    return _content_to_text(content)
+
+
+def _provider_order(settings: Settings) -> list[str]:
+    """Parse ordered provider list from env (comma-separated)."""
+    raw = (settings.llm_provider_order or "").strip()
+    if not raw:
+        return list(DEFAULT_PROVIDER_ORDER)
+
+    providers: list[str] = []
+    for item in raw.split(","):
+        provider = item.strip().lower()
+        if not provider:
+            continue
+        if provider not in DEFAULT_PROVIDER_ORDER:
+            logger.warning("llm_provider_unknown", provider=provider)
+            continue
+        if provider not in providers:
+            providers.append(provider)
+
+    return providers or list(DEFAULT_PROVIDER_ORDER)
 
 
 class FallbackChatLLM(BaseChatModel):
@@ -118,55 +143,66 @@ class FallbackChatLLM(BaseChatModel):
 
 
 def get_llm(settings: Settings, temperature: float = 0.35) -> BaseChatModel:
-    """Build primary LLM with fallbacks: NVIDIA → ModelScope → Groq → OpenAI."""
+    """Build LLM fallback chain in configured provider order."""
     models: List[ChatOpenAI] = []
     common = dict(
         temperature=temperature,
         max_tokens=int(settings.llm_max_tokens),
-        request_timeout=90,
+        request_timeout=int(settings.llm_request_timeout_seconds),
     )
 
-    nk = _nvidia_chat_api_key(settings)
-    if nk:
-        models.append(
-            ChatOpenAI(
-                model=settings.nvidia_chat_model,
-                openai_api_key=nk,
-                openai_api_base=settings.nvidia_chat_base.rstrip("/"),
-                **common,
+    providers = _provider_order(settings)
+    for provider in providers:
+        if provider == "nvidia":
+            nk = _nvidia_chat_api_key(settings)
+            if not nk:
+                continue
+            models.append(
+                ChatOpenAI(
+                    model=settings.nvidia_chat_model,
+                    openai_api_key=nk,
+                    openai_api_base=settings.nvidia_chat_base.rstrip("/"),
+                    **common,
+                )
             )
-        )
+            continue
 
-    ms_key = _modelscope_chat_key(settings)
-    ms_base = _modelscope_chat_base(settings)
-    if ms_key and ms_base:
-        models.append(
-            ChatOpenAI(
-                model=settings.modelscope_chat_model,
-                openai_api_key=ms_key,
-                openai_api_base=ms_base.rstrip("/"),
-                **common,
+        if provider == "modelscope":
+            ms_key = _modelscope_chat_key(settings)
+            ms_base = _modelscope_chat_base(settings)
+            if not (ms_key and ms_base):
+                continue
+            models.append(
+                ChatOpenAI(
+                    model=settings.modelscope_chat_model,
+                    openai_api_key=ms_key,
+                    openai_api_base=ms_base.rstrip("/"),
+                    **common,
+                )
             )
-        )
+            continue
 
-    if settings.groq_api_key.strip():
-        models.append(
-            ChatOpenAI(
-                model=settings.groq_model,
-                openai_api_key=settings.groq_api_key,
-                openai_api_base=settings.groq_api_base.rstrip("/"),
-                **common,
+        if provider == "groq":
+            if not settings.groq_api_key.strip():
+                continue
+            models.append(
+                ChatOpenAI(
+                    model=settings.groq_model,
+                    openai_api_key=settings.groq_api_key,
+                    openai_api_base=settings.groq_api_base.rstrip("/"),
+                    **common,
+                )
             )
-        )
+            continue
 
-    if _openai_key_usable(settings):
-        models.append(
-            ChatOpenAI(
-                model=settings.openai_model,
-                openai_api_key=settings.openai_api_key,
-                **common,
+        if provider == "openai" and _openai_key_usable(settings):
+            models.append(
+                ChatOpenAI(
+                    model=settings.openai_model,
+                    openai_api_key=settings.openai_api_key,
+                    **common,
+                )
             )
-        )
 
     if not models:
         raise ValueError(
@@ -174,7 +210,52 @@ def get_llm(settings: Settings, temperature: float = 0.35) -> BaseChatModel:
             "GROQ_API_KEY, or a real OPENAI_API_KEY."
         )
 
+    logger.info(
+        "llm_chain_built",
+        provider_order=providers,
+        active_models=len(models),
+    )
+
     if len(models) == 1:
         return models[0]
 
     return FallbackChatLLM(models=models)
+
+
+async def stream_chat_tokens(
+    llm: BaseChatModel,
+    messages: Sequence[BaseMessage],
+    **kwargs: Any,
+) -> AsyncIterator[str]:
+    """Yield streamed token chunks, with fallback support before any token is emitted."""
+    candidates: Sequence[BaseChatModel] = (
+        llm.models if isinstance(llm, FallbackChatLLM) else [llm]
+    )
+
+    last_error: Exception | None = None
+    for idx, model in enumerate(candidates):
+        emitted = False
+        try:
+            async for chunk in model.astream(messages, **kwargs):
+                token = _content_to_text(getattr(chunk, "content", ""))
+                if not token:
+                    continue
+                emitted = True
+                yield token
+            if emitted:
+                return
+            raise ValueError("LLM returned empty streamed content")
+        except Exception as exc:
+            if emitted:
+                logger.warning(
+                    "llm_stream_interrupted",
+                    attempt=idx + 1,
+                    error=str(exc)[:300],
+                )
+                raise
+            logger.warning("llm_fallback_astream", attempt=idx + 1, error=str(exc)[:300])
+            last_error = exc
+
+    if last_error is not None:
+        raise last_error
+    raise ValueError("No streaming-capable LLM configured")

@@ -20,6 +20,8 @@ cp .env.example .env
 
 Open `.env` and fill in every key. See the table below.
 
+Latency tip: set `LLM_PROVIDER_ORDER=groq,nvidia,modelscope,openai` to try Groq first for faster chat generation.
+
 ### 2. API Keys you need
 
 **Stack option — Groq + ModelScope (no OpenAI):** set `GROQ_API_KEY`, `EMBEDDING_API_BASE`, `EMBEDDING_API_KEY`, `OPENAI_EMBEDDING_MODEL` (e.g. Qwen), and `PINECONE_EMBEDDING_DIMENSION` (e.g. 4096). Leave `OPENAI_API_KEY` empty.

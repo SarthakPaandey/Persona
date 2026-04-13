@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     # Completion token budget for chat responses. Increase if you see responses ending mid-sentence
     # with finish_reason="length".
     llm_max_tokens: int = 4096
+    llm_request_timeout_seconds: int = 45
+    # Ordered chat provider chain (comma-separated): nvidia, modelscope, groq, openai
+    # Example for low latency: "groq,nvidia,modelscope,openai" or "groq".
+    llm_provider_order: str = "nvidia,modelscope,groq,openai"
 
     # RAG Config
     chunk_size: int = 512

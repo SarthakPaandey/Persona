@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
-import { sendChatMessage } from '@/lib/api';
-import { ConversationMessage, Message, Source } from '@/lib/types';
+import { sendChatMessage, streamChatMessage } from '@/lib/api';
+import { ChatResponse, ConversationMessage, Message, Source } from '@/lib/types';
 
 function buildWelcomeMessage(personaName: string) {
   return `I am **RORI**, ${personaName}'s loyal ship AI. I can tell you about his background, his skills, and schedule a rendezvous!\n\nSet course and ask me about his background, skills, or projects...`;
@@ -54,48 +54,88 @@ export function useChat(personaName = 'this candidate') {
         { role: 'user', content },
       ];
 
-      setMessages((prev) => [...prev, userMessage]);
-      setIsLoading(true);
+      const assistantMessageId = uuidv4();
+      const assistantPlaceholder: Message = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+        sources: [],
+        timestamp: new Date(),
+      };
 
-      try {
-        const response = await sendChatMessage({
-          message: content,
-          conversation_id: conversationId,
-          conversation_history: historyForApi.slice(-10),
-          timezone: getBrowserTimezone(),
-        });
+      const payload = {
+        message: content,
+        conversation_id: conversationId,
+        conversation_history: historyForApi.slice(-10),
+        timezone: getBrowserTimezone(),
+      };
 
+      const finalizeAssistant = (response: ChatResponse) => {
         const assistantContent =
           typeof response.message === 'string' ? response.message.trim() : '';
 
-        const assistantMessage: Message = {
-          id: uuidv4(),
-          role: 'assistant',
-          content:
-            assistantContent ||
-            "I found relevant context, but I couldn't generate a proper answer. Please try again.",
-          sources: response.sources || [],
-          bookingLink: response.booking_link || undefined,
-          availableSlots: response.available_slots || undefined,
-          timezone: response.timezone || undefined,
-          timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantMessageId
+              ? {
+                  ...message,
+                  content:
+                    assistantContent ||
+                    "I found relevant context, but I couldn't generate a proper answer. Please try again.",
+                  sources: response.sources || [],
+                  bookingLink: response.booking_link || undefined,
+                  availableSlots: response.available_slots || undefined,
+                  timezone: response.timezone || undefined,
+                }
+              : message
+          )
+        );
         setSources(response.sources || []);
+      };
+
+      setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
+      setIsLoading(true);
+
+      try {
+        const streamedResponse = await streamChatMessage(payload, (event) => {
+          if (event.type !== 'token' || !event.token) return;
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    content: `${message.content}${event.token}`,
+                  }
+                : message
+            )
+          );
+        });
+
+        finalizeAssistant(streamedResponse);
       } catch (error) {
-        console.error('Chat error:', error);
+        console.warn(
+          'Streaming chat failed, falling back to non-streaming endpoint:',
+          error
+        );
 
-        const errorMessage: Message = {
-          id: uuidv4(),
-          role: 'assistant',
-          content:
-            "I'm sorry, I encountered an error processing your message. Please try again.",
-          sources: [],
-          timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, errorMessage]);
+        try {
+          const fallbackResponse = await sendChatMessage(payload);
+          finalizeAssistant(fallbackResponse);
+        } catch (fallbackError) {
+          console.error('Chat error:', fallbackError);
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    content:
+                      "I'm sorry, I encountered an error processing your message. Please try again.",
+                    sources: [],
+                  }
+                : message
+            )
+          );
+        }
       } finally {
         setIsLoading(false);
       }

@@ -1,5 +1,7 @@
 """Tests for the chat endpoint."""
 
+import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -246,3 +248,28 @@ def test_persona_endpoint_returns_metadata(client_with_mocks):
     assert data.get("name")
     assert data.get("role")
     assert "booking_link" in data
+
+
+def test_chat_stream_returns_token_events(client_with_mocks, mock_rag_engine):
+    async def token_stream():
+        for token in ("Captain ", "Sarthak"):
+            yield token
+
+    mock_rag_engine.stream_query = AsyncMock(
+        return_value=SimpleNamespace(
+            token_stream=token_stream(),
+            source_documents=[],
+            confidence=0.9,
+        )
+    )
+
+    res = client_with_mocks.post(
+        "/api/chat/stream",
+        json={"message": "Tell me about your skills", "conversation_history": []},
+    )
+
+    assert res.status_code == 200
+    events = [json.loads(line) for line in res.text.splitlines() if line.strip()]
+    assert events[0].get("type") == "token"
+    assert events[-1].get("type") == "done"
+    assert "message" in events[-1].get("response", {})
