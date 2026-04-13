@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=VT323&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Mono&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,44 +7,203 @@
 
 :root {
     --terminal-green: #00ff41;
+    --neon-cyan: #00d9ff;
+    --neon-purple: #ff00ff;
+    --neon-pink: #ff0080;
     --terminal-dark: #050505;
     --space-bg: #000000;
+    --glass-bg: rgba(0, 20, 40, 0.4);
 }
 
 body {
     background-color: var(--space-bg);
     color: var(--terminal-green);
-    font-family: "VT323", monospace;
+    font-family: "Space Mono", monospace;
     overflow: hidden;
+    position: relative;
+}
+
+/* Animated gradient background layers */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at 20% 50%, rgba(0, 217, 255, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(255, 0, 128, 0.02) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 1;
+    animation: gradientShift 8s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
 }
 
 ::-webkit-scrollbar {
-    width: 8px;
+    width: 10px;
 }
 
 ::-webkit-scrollbar-track {
-    background: rgba(0, 255, 65, 0.1);
+    background: rgba(0, 255, 65, 0.05);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--terminal-green);
-    border: 1px solid var(--terminal-dark);
+    background: linear-gradient(180deg, var(--neon-cyan), var(--terminal-green));
+    border-radius: 5px;
+    border: 1px solid rgba(0, 255, 65, 0.2);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #00cc33;
+    background: linear-gradient(180deg, var(--terminal-green), var(--neon-cyan));
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.4);
 }
 
-/* Terminal Effects */
+/* Terminal Effects - Enhanced */
 .terminal-container {
     position: relative;
     z-index: 10;
-    background: rgba(0, 0, 0, 0.92);
-    border: 1px solid rgba(0, 255, 65, 0.5);
-    box-shadow:
-        0 0 10px rgba(0, 255, 65, 0.1),
-        inset 0 0 10px rgba(0, 255, 65, 0.05);
-    backdrop-filter: blur(8px);
+    background: linear-gradient(135deg, rgba(0, 5, 2, 0.95) 0%, rgba(0, 10, 20, 0.95) 100%);
+    border: 2px solid rgba(0, 255, 65, 0.4);
+    box-shadow: 
+        0 0 30px rgba(0, 255, 65, 0.25),
+        0 0 60px rgba(0, 217, 255, 0.1),
+        inset 0 0 40px rgba(0, 255, 65, 0.08);
+    backdrop-filter: blur(12px);
+    transition: box-shadow 0.3s ease;
+}
+
+.terminal-container:hover {
+    box-shadow: 
+        0 0 40px rgba(0, 255, 65, 0.35),
+        0 0 80px rgba(0, 217, 255, 0.15),
+        inset 0 0 50px rgba(0, 255, 65, 0.12);
+}
+
+/* Animated border effect */
+.terminal-container::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, 
+        transparent 0%,
+        rgba(0, 217, 255, 0.2) 25%,
+        transparent 50%,
+        rgba(0, 217, 255, 0.2) 75%,
+        transparent 100%
+    );
+    animation: borderGlow 3s linear infinite;
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+@keyframes borderGlow {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* Neon text glow effect */
+.neon-glow {
+    text-shadow: 
+        0 0 5px var(--terminal-green),
+        0 0 10px rgba(0, 255, 65, 0.5),
+        0 0 20px rgba(0, 255, 65, 0.3);
+    animation: neonFlicker 0.1s infinite, neonPulse 2s ease-in-out infinite;
+}
+
+@keyframes neonFlicker {
+    0%, 100% { text-shadow: 0 0 5px var(--terminal-green), 0 0 10px rgba(0, 255, 65, 0.5), 0 0 20px rgba(0, 255, 65, 0.3); }
+    50% { text-shadow: 0 0 4px var(--terminal-green), 0 0 8px rgba(0, 255, 65, 0.3), 0 0 15px rgba(0, 255, 65, 0.2); }
+}
+
+@keyframes neonPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+/* Message animation */
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.message-enter {
+    animation: messageSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Enhanced typing indicator */
+@keyframes typingDot {
+    0%, 20% { transform: translateY(0); opacity: 0.5; }
+    50% { transform: translateY(-10px); opacity: 1; }
+    100% { transform: translateY(0); opacity: 0.5; }
+}
+
+.typing-dot {
+    animation: typingDot 1.4s infinite;
+}
+
+/* Scan line effect */
+.scanlines {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.06),
+        rgba(0, 0, 0, 0.06) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    animation: scanlineMove 8s linear infinite;
+    z-index: 2;
+}
+
+@keyframes scanlineMove {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(10px); }
+}
+
+/* Cyber border effect */
+.cyber-border {
+    position: relative;
+    overflow: hidden;
+}
+
+.cyber-border::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent,
+        rgba(0, 255, 65, 0.3),
+        transparent
+    );
+    animation: cyberGlow 3s infinite;
+    pointer-events: none;
+}
+
+@keyframes cyberGlow {
+    0% { left: -100%; }
+    100% { left: 100%; }
 }
 
 .crt-overlay {
@@ -54,15 +214,32 @@ body {
     left: 0;
     bottom: 0;
     right: 0;
-    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background: 
+        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.04));
     z-index: 50;
-    background-size: 100% 2px, 3px 100%;
+    background-size: 100% 3px, 4px 100%;
+    pointer-events: none;
+}
+
+/* Vignette Effect */
+.crt-overlay::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: radial-gradient(circle, transparent 40%, rgba(0, 0, 0, 0.6) 110%);
+    z-index: 51;
     pointer-events: none;
 }
 
 @keyframes scanline-scroll {
-    0% { transform: translateY(-100%); }
-    100% { transform: translateY(100vh); }
+    0% { transform: translateY(-100%); opacity: 0.1; }
+    50% { opacity: 0.3; }
+    100% { transform: translateY(100vh); opacity: 0.1; }
 }
 
 .crt-overlay::after {
@@ -73,13 +250,12 @@ body {
     left: 0;
     bottom: 0;
     right: 0;
-    background: rgba(0, 255, 65, 0.05);
-    opacity: 0.2;
-    z-index: 50;
+    background: rgba(0, 255, 65, 0.03);
+    z-index: 52;
     pointer-events: none;
-    animation: scanline-scroll 8s linear infinite;
-    height: 15vh;
-    box-shadow: 0 0 40px rgba(0, 255, 65, 0.5);
+    animation: scanline-scroll 6s linear infinite;
+    height: 10vh;
+    box-shadow: 0 0 50px rgba(0, 255, 65, 0.4);
 }
 
 @keyframes cursor-blink {
@@ -94,29 +270,61 @@ body {
     background-color: var(--terminal-green);
     animation: cursor-blink 1s step-end infinite;
     vertical-align: bottom;
-    box-shadow: 0 0 5px var(--terminal-green);
+    box-shadow: 0 0 8px var(--terminal-green);
 }
 
 .terminal-text {
-    text-shadow: 0 0 2px rgba(0, 255, 65, 0.3);
+    /* Chromatic Aberration Simulation */
+    text-shadow: 
+        1px 0 1px rgba(255, 0, 0, 0.4),
+        -1px 0 1px rgba(0, 0, 255, 0.4),
+        0 0 3px rgba(0, 255, 65, 0.3);
     font-family: "VT323", monospace;
     font-size: 1.15rem;
     letter-spacing: 0.03em;
 }
 
 .text-shadow-sm {
-    text-shadow: 0 0 3px rgba(0, 255, 65, 0.4);
+    text-shadow: 
+        0.5px 0 0.5px rgba(255, 0, 0, 0.3),
+        -0.5px 0 0.5px rgba(0, 0, 255, 0.3),
+        0 0 4px rgba(0, 255, 65, 0.5);
 }
 
+/* Tech Borders */
+.tech-frame {
+    position: relative;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(0, 255, 65, 0.4), transparent 40%, transparent 60%, rgba(0, 255, 65, 0.4));
+}
+
+.tech-corner-tl, .tech-corner-tr, .tech-corner-bl, .tech-corner-br {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--terminal-green);
+    z-index: 20;
+    pointer-events: none;
+}
+
+.tech-corner-tl { top: -4px; left: -4px; border-right: none; border-bottom: none; }
+.tech-corner-tr { top: -4px; right: -4px; border-left: none; border-bottom: none; }
+.tech-corner-bl { bottom: -4px; left: -4px; border-right: none; border-top: none; }
+.tech-corner-br { bottom: -4px; right: -4px; border-left: none; border-top: none; }
+
 .terminal-input {
-    background: transparent !important;
+    background: rgba(0, 10, 5, 0.8) !important;
     color: var(--terminal-green) !important;
-    border-color: var(--terminal-green) !important;
+    border: 1px solid rgba(0, 255, 65, 0.3) !important;
     font-family: "VT323", monospace;
+    box-shadow: inset 0 0 15px rgba(0, 255, 65, 0.05);
 }
 .terminal-input:focus {
     outline: none !important;
-    box-shadow: inset 0 0 5px rgba(0, 255, 65, 0.5) !important;
+    border-color: var(--terminal-green) !important;
+    box-shadow: 
+        inset 0 0 10px rgba(0, 255, 65, 0.1),
+        0 0 15px rgba(0, 255, 65, 0.1) !important;
 }
 .terminal-input::placeholder {
     color: rgba(0, 255, 65, 0.4) !important;

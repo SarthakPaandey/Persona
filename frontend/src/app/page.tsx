@@ -156,53 +156,70 @@ export default function Home() {
   return (
     <>
       <SpaceBackground />
+      
+      {/* Global scanlines effect */}
+      <div className="scanlines" />
 
       <div className="relative z-10 flex flex-col h-screen max-w-5xl mx-auto p-4 sm:p-6">
-        <div className="terminal-container terminal-float flex flex-col flex-1 h-full rounded-sm overflow-hidden relative">
-          <div className="crt-overlay"></div>
-          <Header
-            name="Sarthak Pandey"
-            role="Captain"
-            resumeConfigured={persona.resume_configured}
-            voiceEnabled={persona.voice_enabled}
-          />
+        <div className="tech-frame flex-1 flex flex-col min-h-0 relative group">
+          {/* Enhanced corner decorations */}
+          <div className="tech-corner-tl group-hover:shadow-[0_0_15px_rgba(0,255,65,0.4)]" />
+          <div className="tech-corner-tr group-hover:shadow-[0_0_15px_rgba(0,255,65,0.4)]" />
+          <div className="tech-corner-bl group-hover:shadow-[0_0_15px_rgba(0,255,65,0.4)]" />
+          <div className="tech-corner-br group-hover:shadow-[0_0_15px_rgba(0,255,65,0.4)]" />
+          
+          <div className="absolute -top-4 left-8 px-3 py-1 bg-black text-[9px] text-neon-green/70 font-mono tracking-[0.3em] z-30 uppercase border border-neon-green/30 rounded backdrop-blur">
+            ◆ SYSTEM CONSOLE v4.0.2 ◆
+          </div>
+          <div className="absolute -bottom-4 right-8 px-3 py-1 bg-black text-[9px] text-neon-cyan/70 font-mono tracking-[0.3em] z-30 uppercase border border-neon-cyan/30 rounded backdrop-blur">
+            ◆ TERMINAL ID: S-PA-413 ◆
+          </div>
 
-          <main className="flex-1 overflow-hidden flex flex-col">
-             {!persona.resume_configured && (
-               <div className="mx-2 sm:mx-4 mt-2 sm:mt-4 border border-green-500/50 bg-green-900/20 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-[#00ff41]">
-                 [SYSTEM ALERT] Resume grounding is offline. Initialize database
-                 sequence before mission critical deployment.
-               </div>
-             )}
+          <div className="terminal-container terminal-float flex flex-col flex-1 h-full rounded-lg overflow-hidden relative shadow-2xl">
+            <div className="crt-overlay"></div>
+            <Header
+              name="Sarthak Pandey"
+              role="Captain"
+              resumeConfigured={persona.resume_configured}
+              voiceEnabled={persona.voice_enabled}
+            />
 
-            <ChatWindow messages={messages} isLoading={isLoading} />
-            <ChatInput onSend={sendMessage} isLoading={isLoading} />
-          </main>
+            <main className="flex-1 overflow-hidden flex flex-col">
+               {!persona.resume_configured && (
+                 <div className="mx-2 sm:mx-4 mt-2 sm:mt-4 border-2 border-neon-pink/60 bg-neon-pink/10 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-neon-pink font-semibold rounded backdrop-blur animate-pulse">
+                   <span className="font-bold">⚠ ALERT:</span> Resume grounding is offline. Initialize database sequence before mission critical deployment.
+                 </div>
+               )}
 
-           {messages.length === 1 && (
-             <div className="px-2 sm:px-4 pb-3 sm:pb-4">
-               <p className="text-xs sm:text-sm text-[#00ff41]/70 mb-2 font-mono uppercase tracking-widest flex items-center gap-2">
-                 <span>💡</span> Suggested Inquiries:
-               </p>
-               <div className="flex flex-wrap gap-1 sm:gap-2 font-mono">
-                 {[
-                   "What are Captain Sarthak's AI engineering skills?",
-                   "Show me his latest GitHub projects",
-                   "Explain his experience with RAG",
-                   "Request transmission to schedule interview",
-                 ].map((q) => (
-                   <button
-                     key={q}
-                     type="button"
-                     onClick={() => sendMessage(q)}
-                     className="text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 bg-black/50 border border-[#00ff41]/50 text-[#00ff41] hover:bg-[#00ff41]/20 hover:border-[#00ff41] transition-colors whitespace-nowrap"
-                   >
-                     &gt; {q}
-                   </button>
-                 ))}
+              <ChatWindow messages={messages} isLoading={isLoading} />
+              <ChatInput onSend={sendMessage} isLoading={isLoading} />
+            </main>
+
+             {messages.length === 1 && (
+               <div className="px-2 sm:px-4 pb-3 sm:pb-4 bg-gradient-to-t from-black/90 to-transparent backdrop-blur">
+                 <p className="text-xs sm:text-sm text-neon-cyan/70 mb-3 font-mono uppercase tracking-widest flex items-center gap-2 font-bold">
+                   <span className="animate-pulse">●</span> 💡 Suggested Queries:
+                 </p>
+                 <div className="flex flex-wrap gap-2 sm:gap-3 font-mono">
+                   {[
+                     "What are Captain Sarthak's AI engineering skills?",
+                     "Show me his latest GitHub projects",
+                     "Explain his experience with RAG",
+                     "Request transmission to schedule interview",
+                   ].map((q) => (
+                     <button
+                       key={q}
+                       type="button"
+                       onClick={() => sendMessage(q)}
+                       className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-br from-neon-green/15 to-neon-green/5 border-2 border-neon-green/50 text-neon-green hover:from-neon-green/30 hover:to-neon-green/15 hover:border-neon-cyan hover:shadow-[0_0_15px_rgba(0,217,255,0.3)] transition-all duration-300 whitespace-nowrap rounded font-semibold hover:scale-105 active:scale-95"
+                     >
+                       ➤ {q}
+                     </button>
+                   ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </>

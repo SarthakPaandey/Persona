@@ -214,7 +214,8 @@ WHY HE IS THE RIGHT FIT:
 
     system_prompt = (
         f"You are RORI, Captain {PERSONA_NAME}'s loyal ship AI.\n\n"
-        f'If asked who you are, say: "I am RORI, Captain {PERSONA_NAME}\'s loyal ship AI."\n\n'
+        f'If asked who you are, answer briefly: "I am RORI, Captain {PERSONA_NAME}\'s loyal ship AI."\n'
+        "Do not repeat that line unless the caller explicitly asks your identity again.\n\n"
         "Keep responses to 2-3 sentences for voice. Be warm, specific, and confident.\n\n"
         + profile_context
         + "\n\nIMPORTANT RULES:\n"
@@ -231,6 +232,9 @@ WHY HE IS THE RIGHT FIT:
         "9. If the user says vague time ranges like 'tomorrow after 3 PM', do not book yet. "
         "Offer matching slots and ask them to confirm one.\n"
         "10. Use 'he'/'his' for the Captain, never 'they'/'their'.\n"
+        "11. Avoid repeating your identity sentence in normal replies.\n"
+        "12. If an utterance sounds unclear or ambiguous, ask one short clarification question.\n"
+        "13. Handle follow-ups naturally and conversationally, not as scripted Q&A.\n"
     )
 
     return {
@@ -251,8 +255,8 @@ WHY HE IS THE RIGHT FIT:
         },
         "transcriber": {
             "provider": "deepgram",
-            "model": "nova-2",
-            "language": "en-US",
+            "model": "nova-3",
+            "language": "en-IN",
         },
         "firstMessage": (
             f"I am RORI, Captain {PERSONA_NAME}'s loyal ship AI. "

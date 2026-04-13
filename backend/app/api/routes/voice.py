@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime, time, timedelta
 import structlog
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
@@ -200,7 +200,7 @@ def _safe_timezone_name(candidate: str) -> str:
         return VOICE_DEFAULT_TIMEZONE
 
 
-def _parse_iso_datetime(value: str, timezone: str) -> datetime | None:
+def _parse_iso_datetime(value: str, timezone: str) -> Optional[datetime]:
     """Parse an ISO datetime string, attaching timezone when naive."""
     raw = (value or "").strip()
     if not raw:
@@ -217,7 +217,7 @@ def _parse_iso_datetime(value: str, timezone: str) -> datetime | None:
     return parsed.astimezone(ZoneInfo(timezone))
 
 
-def _extract_requested_day_offset(text: str) -> int | None:
+def _extract_requested_day_offset(text: str) -> Optional[int]:
     """Infer day offset from natural-language requests."""
     lowered = (text or "").lower()
     if "day after tomorrow" in lowered:
@@ -229,7 +229,7 @@ def _extract_requested_day_offset(text: str) -> int | None:
     return None
 
 
-def _extract_after_time(text: str) -> time | None:
+def _extract_after_time(text: str) -> Optional[time]:
     """Extract phrases like "after 3 PM" into a time constraint."""
     match = re.search(
         r"\bafter\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
@@ -254,7 +254,7 @@ def _extract_after_time(text: str) -> time | None:
     return time(hour=hour, minute=minute)
 
 
-def _slot_datetime(slot: Dict[str, Any], timezone: str) -> datetime | None:
+def _slot_datetime(slot: Dict[str, Any], timezone: str) -> Optional[datetime]:
     """Parse a slot's start timestamp in the target timezone."""
     return _parse_iso_datetime(str(slot.get("start", "")), timezone=timezone)
 
@@ -275,7 +275,7 @@ def _build_slot_pairs(
 def _pick_slot_from_iso_request(
     requested_dt: datetime,
     slot_pairs: List[tuple[datetime, Dict[str, Any]]],
-) -> Dict[str, Any] | None:
+) -> Optional[Dict[str, Any]]:
     """Pick an exact slot match first, else the closest future slot."""
     for slot_dt, slot in slot_pairs:
         if abs((slot_dt - requested_dt).total_seconds()) < 60:
@@ -291,7 +291,7 @@ def _matches_phrase_constraints(
     slot_dt: datetime,
     timezone: str,
     target_date,
-    after_time: time | None,
+    after_time: Optional[time],
 ) -> bool:
     """Return True when a slot matches phrase-derived date/time constraints."""
     local_dt = slot_dt.astimezone(ZoneInfo(timezone))
@@ -307,7 +307,7 @@ def _pick_slot_from_phrase_request(
     requested: str,
     slot_pairs: List[tuple[datetime, Dict[str, Any]]],
     timezone: str,
-) -> Dict[str, Any] | None:
+) -> Optional[Dict[str, Any]]:
     """Pick a slot from natural-language phrasing like 'tomorrow after 3 PM'."""
     lowered = (requested or "").lower()
     day_offset = _extract_requested_day_offset(lowered)
@@ -332,7 +332,7 @@ def _select_best_slot(
     requested: str,
     slots: List[Dict[str, Any]],
     timezone: str,
-) -> Dict[str, Any] | None:
+) -> Optional[Dict[str, Any]]:
     """Map a requested datetime phrase to the closest valid available slot."""
     if not slots:
         return None
