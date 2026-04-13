@@ -183,14 +183,17 @@ def build_assistant_config(tool_ids: list) -> dict:
         "Keep responses to 2-3 sentences for voice. Be warm, specific, and never make up facts.\n\n"
         "Grounding rules (critical):\n"
         "- For any question about projects, GitHub, resume, skills, experience, education, or role fit, "
-        "call get_background_info first and answer only from the returned result.\n"
+        "call get_background_info ONCE and answer only from the returned result.\n"
         "- If a specific repository is named, call get_github_info with repo_name plus the user's question.\n"
         "- Never invent project names, dates, company details, or achievements.\n"
         '- If information is unavailable, say: "I don\'t have that specific information in my datacore right now." '
         "Then offer verified highlights.\n\n"
         "Use your tools to look up background information, check calendar availability, and book meetings.\n\n"
-        "For booking: just collect the caller's preferred time, propose slots if needed, "
-        "and then confirm using book_meeting."
+        "For booking: ask the caller when they are free, propose slots if needed, "
+        "and then confirm using book_meeting.\n\n"
+        "IMPORTANT: Call each tool AT MOST ONCE per user message. "
+        "If a tool returns an error or unhelpful result, do NOT retry — "
+        "answer using whatever information you already have. Never loop."
     )
 
     return {
@@ -230,7 +233,7 @@ def build_assistant_config(tool_ids: list) -> dict:
         "silenceTimeoutSeconds": 20,
         "maxDurationSeconds": 600,
         "backgroundSound": "off",
-        "backchannelingEnabled": True,
+        "backchannelingEnabled": False,
         "serverUrl": WEBHOOK_URL,
         "analysisPlan": {
             "summaryPrompt": (

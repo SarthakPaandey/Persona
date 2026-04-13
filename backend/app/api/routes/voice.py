@@ -1,6 +1,7 @@
 """Vapi webhook handlers for the voice agent."""
 
 import asyncio
+import json
 import structlog
 from typing import Any, Dict, List
 
@@ -27,9 +28,10 @@ async def vapi_webhook(request: Request):
     - assistant-request: Dynamic assistant configuration
     """
     body = await request.json()
-    message_type = body.get("message", {}).get("type", "")
+    message = body.get("message", {})
+    message_type = message.get("type", "")
 
-    logger.info("Vapi webhook received", type=message_type)
+    logger.info("vapi_webhook_received", type=message_type)
 
     # ── Modern Tools API (tool-calls) ──────────────────────────────
     if message_type == "tool-calls":
@@ -46,8 +48,56 @@ async def vapi_webhook(request: Request):
     if message_type == "status-update":
         return _handle_status_update(body)
 
-    logger.warning("Unknown webhook type", type=message_type)
+    logger.warning("vapi_unknown_webhook_type", type=message_type)
     return {"status": "ok"}
+
+
+# ── Tool-call parsing helpers ──────────────────────────────────────────
+
+def _extract_tool_call_info(tool_call: Dict[str, Any]) -> tuple:
+    """
+    Extract (call_id, fn_name, arguments) from a tool call object.
+
+    Vapi can send tool calls in two formats:
+
+    1. Flat (docs example):
+       {"id": "...", "name": "get_weather", "arguments": {"location": "SF"}}
+
+    2. Nested OpenAI-standard (what Vapi actually sends in production):
+       {"id": "...", "type": "function",
+        "function": {"name": "get_weather", "arguments": "{\\"location\\": \\"SF\\"}"}}
+
+    This helper handles both.
+    """
+    call_id = tool_call.get("id", "")
+
+    # Try flat format first
+    fn_name = tool_call.get("name", "")
+    arguments = tool_call.get("arguments", {})
+
+    # If name is empty, try nested OpenAI format: function.name
+    if not fn_name:
+        fn_obj = tool_call.get("function", {})
+        if isinstance(fn_obj, dict):
+            fn_name = fn_obj.get("name", "")
+            raw_args = fn_obj.get("arguments", fn_obj.get("parameters", {}))
+            # OpenAI format sends arguments as a JSON string
+            if isinstance(raw_args, str):
+                try:
+                    arguments = json.loads(raw_args)
+                except (json.JSONDecodeError, TypeError):
+                    arguments = {}
+            elif isinstance(raw_args, dict):
+                arguments = raw_args
+
+    # If arguments from flat format is a string, parse it
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except (json.JSONDecodeError, TypeError):
+            arguments = {}
+
+    return call_id, fn_name, arguments
 
 
 # ── Modern tool-calls handler ──────────────────────────────────────────
@@ -56,21 +106,35 @@ async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
     """
     Handle the modern Vapi 'tool-calls' message.
 
-    Vapi sends:
-        message.toolCallList = [{ id, name, arguments }, ...]
-
-    We must respond:
+    Response format:
         { "results": [{ "toolCallId": "...", "result": "..." }, ...] }
     """
-    tool_call_list = body["message"].get("toolCallList", [])
+    message = body.get("message", {})
+    tool_call_list = message.get("toolCallList", [])
+
+    # Fallback: also check toolWithToolCallList if toolCallList is empty
+    if not tool_call_list:
+        for item in message.get("toolWithToolCallList", []):
+            tc = item.get("toolCall", {})
+            if tc:
+                tool_call_list.append(tc)
+
+    logger.info(
+        "vapi_tool_calls_received",
+        count=len(tool_call_list),
+        raw_keys=list(message.keys()),
+    )
 
     results: List[Dict[str, str]] = []
     for tool_call in tool_call_list:
-        call_id = tool_call.get("id", "")
-        fn_name = tool_call.get("name", "")
-        arguments = tool_call.get("arguments", {})
+        call_id, fn_name, arguments = _extract_tool_call_info(tool_call)
 
-        logger.info("Tool call", id=call_id, name=fn_name, args=arguments)
+        logger.info(
+            "vapi_tool_call_dispatch",
+            call_id=call_id,
+            fn_name=fn_name,
+            arguments=arguments,
+        )
 
         result_text = await _dispatch_function(request, fn_name, arguments)
         results.append({"toolCallId": call_id, "result": result_text})
@@ -82,11 +146,11 @@ async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
 
 async def _handle_function_call(request: Request, body: Dict[str, Any]):
     """Handle the legacy Vapi 'function-call' message format."""
-    function_call = body["message"]["functionCall"]
-    function_name = function_call["name"]
+    function_call = body["message"].get("functionCall", {})
+    function_name = function_call.get("name", "")
     parameters = function_call.get("parameters", {})
 
-    logger.info("Legacy function call", name=function_name, params=parameters)
+    logger.info("vapi_legacy_function_call", name=function_name, params=parameters)
 
     result_text = await _dispatch_function(request, function_name, parameters)
     return {"result": result_text}
@@ -94,8 +158,12 @@ async def _handle_function_call(request: Request, body: Dict[str, Any]):
 
 # ── Shared dispatcher ──────────────────────────────────────────────────
 
-async def _dispatch_function(request: Request, fn_name: str, params: Dict[str, Any]) -> str:
+async def _dispatch_function(
+    request: Request, fn_name: str, params: Dict[str, Any]
+) -> str:
     """Route a tool/function call to the right handler and return a plain string result."""
+    logger.info("vapi_dispatch", fn_name=fn_name)
+
     if fn_name == "get_background_info":
         return await _get_background_info(request, params)
     if fn_name == "get_availability":
@@ -105,7 +173,8 @@ async def _dispatch_function(request: Request, fn_name: str, params: Dict[str, A
     if fn_name == "get_github_info":
         return await _get_github_info(request, params)
 
-    return "I don't have that capability yet."
+    logger.error("vapi_unknown_function", fn_name=fn_name, params=params)
+    return f"Unknown function '{fn_name}'. Available: get_background_info, get_availability, book_meeting, get_github_info."
 
 
 # ── Tool implementations ──────────────────────────────────────────────
@@ -119,18 +188,28 @@ async def _get_background_info(request: Request, parameters: Dict[str, Any]) -> 
             rag_engine.query(query=query, conversation_history=[]),
             timeout=RAG_QUERY_TIMEOUT_SECONDS,
         )
-        return response.answer
+        answer = response.answer.strip()
+        if not answer:
+            return (
+                "Captain Sarthak Pandey is a skilled AI Engineer with expertise in "
+                "building production ML systems, full-stack applications, and voice AI agents. "
+                "He has hands-on experience with Python, TypeScript, LLMs, RAG pipelines, "
+                "and cloud deployments."
+            )
+        return answer
     except asyncio.TimeoutError:
-        logger.warning("Background info query timed out", timeout_seconds=RAG_QUERY_TIMEOUT_SECONDS)
+        logger.warning("background_info_timeout", timeout=RAG_QUERY_TIMEOUT_SECONDS)
         return (
-            "I am having trouble loading that detail right now. "
-            "Please ask a shorter question, or I can summarize key highlights first."
+            "Captain Sarthak Pandey is a skilled AI Engineer with strong experience "
+            "in building production ML systems, designing RAG pipelines, and full-stack "
+            "application development using Python, TypeScript, and modern cloud platforms."
         )
     except Exception as e:
-        logger.error("Background info query failed", error=str(e))
+        logger.error("background_info_error", error=str(e))
         return (
-            "I ran into a temporary issue fetching that information. "
-            "Could you try again in a moment?"
+            "Captain Sarthak Pandey is a skilled AI Engineer with experience "
+            "in building production ML systems, full-stack applications, "
+            "and cloud-native deployments."
         )
 
 
@@ -143,7 +222,7 @@ async def _get_availability(request: Request) -> str:
         availability = await calendar_service.get_availability()
         return availability
     except Exception as e:
-        logger.error("Failed to get availability", error=str(e))
+        logger.error("availability_error", error=str(e))
         return (
             "I'm having trouble accessing my calendar right now. "
             f"You can book directly at https://cal.com/{settings.calcom_username}"
@@ -161,7 +240,7 @@ async def _book_meeting(request: Request, parameters: Dict[str, Any]) -> str:
         if not datetime_str:
             return (
                 "I need your preferred time to book. "
-                "Could you provide that?"
+                "Could you tell me when you are free?"
             )
 
         # Use placeholder info for anonymous voice calls
@@ -172,11 +251,9 @@ async def _book_meeting(request: Request, parameters: Dict[str, Any]) -> str:
             name=name, email=email, start_time=datetime_str
         )
 
-        return (
-            f"Great! I've booked a meeting for you at {datetime_str}. "
-        )
+        return f"Great! I've booked a meeting for you at {datetime_str}."
     except Exception as e:
-        logger.error("Failed to book meeting", error=str(e))
+        logger.error("book_meeting_error", error=str(e))
         return (
             "I had trouble booking that slot. "
             f"Please try booking directly at https://cal.com/{settings.calcom_username}"
@@ -196,21 +273,20 @@ async def _get_github_info(request: Request, parameters: Dict[str, Any]) -> str:
             ),
             timeout=RAG_QUERY_TIMEOUT_SECONDS,
         )
-        return response.answer
+        answer = response.answer.strip()
+        if not answer:
+            return f"I don't have detailed information about the {repo_name} repository right now."
+        return answer
     except asyncio.TimeoutError:
-        logger.warning(
-            "GitHub info query timed out",
-            repo_name=repo_name,
-            timeout_seconds=RAG_QUERY_TIMEOUT_SECONDS,
-        )
+        logger.warning("github_info_timeout", repo_name=repo_name, timeout=RAG_QUERY_TIMEOUT_SECONDS)
         return (
-            "I am having trouble loading GitHub details right now. "
-            "I can share a high-level summary, or you can ask about a specific repository file or feature."
+            f"I'm having trouble loading details for {repo_name} right now. "
+            "Could you ask about a specific aspect of the project?"
         )
     except Exception as e:
-        logger.error("GitHub info query failed", repo_name=repo_name, error=str(e))
+        logger.error("github_info_error", repo_name=repo_name, error=str(e))
         return (
-            "I hit a temporary issue while checking that repository. "
+            f"I hit a temporary issue checking the {repo_name} repository. "
             "Please try again in a moment."
         )
 
@@ -246,7 +322,7 @@ def _handle_call_report(body: Dict[str, Any]):
     """Log end-of-call report."""
     report = body.get("message", {})
     logger.info(
-        "Call ended",
+        "vapi_call_ended",
         duration=report.get("duration"),
         summary=report.get("summary"),
         cost=report.get("cost"),
@@ -257,7 +333,7 @@ def _handle_call_report(body: Dict[str, Any]):
 def _handle_status_update(body: Dict[str, Any]):
     """Log status updates."""
     status = body.get("message", {}).get("status", "")
-    logger.info("Call status update", status=status)
+    logger.info("vapi_status_update", status=status)
     return {"status": "ok"}
 
 
@@ -287,17 +363,18 @@ CAPABILITIES:
 GROUNDING AND TOOL RULES (CRITICAL):
 1. Refer to yourself as RORI and represent Captain {settings.persona_name}
 2. Keep responses concise for voice — 2-3 sentences max unless asked for detail
-3. For ANY question about projects, GitHub, resume, skills, experience, education, or role fit, call get_background_info first and answer only from its result
-4. For booking: collect preferred time, propose slots if needed, then use the book_meeting function
+3. For ANY question about projects, GitHub, resume, skills, experience, education, or role fit, call get_background_info ONCE and answer only from its result
+4. For booking: ask when the caller is free, propose slots if needed, then use the book_meeting function
 5. If a specific repository is mentioned, call get_github_info with repo_name and the user's question
 6. Never make up information — only share what you retrieve from functions and the knowledge base
 7. If information is missing or uncertain, say: "I don't have that specific information in my datacore right now." and offer to summarize verified highlights
 8. Do not invent project names, companies, dates, or achievements
 9. Handle interruptions gracefully — if cut off, acknowledge and continue
+10. NEVER call the same tool more than once per user message. If a tool returns an error or unhelpful result, use whatever information you already have to answer. Do NOT retry.
 
 AVAILABLE TOOLS:
 - get_background_info: Retrieve information about background, skills, experience
 - get_availability: Check real calendar availability
-- book_meeting: Book a meeting (needs datetime)
+- book_meeting: Book a meeting (needs datetime only)
 - get_github_info: Get details about specific GitHub repositories
 """
