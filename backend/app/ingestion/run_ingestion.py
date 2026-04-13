@@ -20,6 +20,9 @@ def run_full_ingestion():
     logger.info("=" * 60)
 
     total_chunks = 0
+    
+    logger.info("Clearing previous vector store data...")
+    vector_store_manager.delete_namespace("")
 
     logger.info("\n--- Ingesting Resume ---")
     try:

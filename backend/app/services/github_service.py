@@ -37,10 +37,10 @@ class GitHubService:
 
     def fetch_all_repos(self) -> List[RepoInfo]:
         """Fetch all public repositories for the user."""
-        user = self.github.get_user()
+        user = self.github.get_user(self.username)
         repos = []
 
-        for repo in user.get_repos(visibility="all", sort="updated", direction="desc"):
+        for repo in user.get_repos(type="public", sort="updated", direction="desc"):
             if repo.fork:
                 continue
 
