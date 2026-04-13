@@ -204,11 +204,12 @@ class RAGEngine:
             doc, score = item
             repo = (doc.metadata.get("repo_name") or "").strip()
             
+            pri = 1 if repo in showcase else 0
+
             if is_recent:
                 date_str = doc.metadata.get("last_updated", "1970-01-01")
-                return (date_str, score)
+                return (pri, date_str, score)
 
-            pri = 1 if repo in showcase else 0
             return (pri, score)
 
         items.sort(key=rank, reverse=True)
