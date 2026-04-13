@@ -1,5 +1,6 @@
 """Vapi webhook handlers for the voice agent."""
 
+import asyncio
 import structlog
 from typing import Any, Dict
 
@@ -10,6 +11,7 @@ from app.services.calendar_service import CalendarService
 
 logger = structlog.get_logger()
 router = APIRouter()
+RAG_QUERY_TIMEOUT_SECONDS = 20
 
 
 @router.post("/vapi/webhook")
@@ -65,10 +67,24 @@ async def _get_background_info(request: Request, parameters: Dict[str, Any]):
     """Retrieve background info via RAG."""
     rag_engine: RAGEngine = request.app.state.rag_engine
     query = parameters.get("question", "Tell me about yourself")
-
-    response = await rag_engine.query(query=query, conversation_history=[])
-
-    return {"result": response.answer}
+    try:
+        response = await asyncio.wait_for(
+            rag_engine.query(query=query, conversation_history=[]),
+            timeout=RAG_QUERY_TIMEOUT_SECONDS,
+        )
+        return {"result": response.answer}
+    except asyncio.TimeoutError:
+        logger.warning("Background info query timed out", timeout_seconds=RAG_QUERY_TIMEOUT_SECONDS)
+        return {
+            "result": "I am having trouble loading that detail right now. "
+            "Please ask a shorter question, or I can summarize key highlights first."
+        }
+    except Exception as e:
+        logger.error("Background info query failed", error=str(e))
+        return {
+            "result": "I ran into a temporary issue fetching that information. "
+            "Could you try again in a moment?"
+        }
 
 
 async def _get_availability(request: Request):
@@ -124,13 +140,31 @@ async def _get_github_info(request: Request, parameters: Dict[str, Any]):
     rag_engine: RAGEngine = request.app.state.rag_engine
     repo_name = parameters.get("repo_name", "")
     question = parameters.get("question", f"Tell me about the {repo_name} project")
-
-    response = await rag_engine.query(
-        query=f"GitHub repository {repo_name}: {question}",
-        conversation_history=[],
-    )
-
-    return {"result": response.answer}
+    try:
+        response = await asyncio.wait_for(
+            rag_engine.query(
+                query=f"GitHub repository {repo_name}: {question}",
+                conversation_history=[],
+            ),
+            timeout=RAG_QUERY_TIMEOUT_SECONDS,
+        )
+        return {"result": response.answer}
+    except asyncio.TimeoutError:
+        logger.warning(
+            "GitHub info query timed out",
+            repo_name=repo_name,
+            timeout_seconds=RAG_QUERY_TIMEOUT_SECONDS,
+        )
+        return {
+            "result": "I am having trouble loading GitHub details right now. "
+            "I can share a high-level summary, or you can ask about a specific repository file or feature."
+        }
+    except Exception as e:
+        logger.error("GitHub info query failed", repo_name=repo_name, error=str(e))
+        return {
+            "result": "I hit a temporary issue while checking that repository. "
+            "Please try again in a moment."
+        }
 
 
 async def _handle_assistant_request(request: Request, body: Dict[str, Any]):
