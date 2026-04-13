@@ -23,16 +23,36 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 
 def _judge_client_and_model():
-    """OpenAI for judge, or Groq (OpenAI-compatible) if no OpenAI key."""
+    """Judge LLM: OpenAI and/or Groq (OpenAI-compatible).
+
+    Set ``EVAL_JUDGE_PROVIDER`` to ``groq`` to use Groq even when ``OPENAI_API_KEY``
+    is set (e.g. invalid local key while ``GROQ_API_KEY`` is valid).
+    """
+    prov = os.getenv("EVAL_JUDGE_PROVIDER", "auto").strip().lower()
     oa = os.getenv("OPENAI_API_KEY", "").strip()
+    gq = os.getenv("GROQ_API_KEY", "").strip()
+
+    if prov == "groq":
+        if not gq:
+            raise SystemExit("EVAL_JUDGE_PROVIDER=groq requires GROQ_API_KEY in .env")
+        base = os.getenv("GROQ_API_BASE", "https://api.groq.com/openai/v1").rstrip("/")
+        model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        return OpenAI(api_key=gq, base_url=base), model, False
+    if prov == "openai":
+        if not oa:
+            raise SystemExit("EVAL_JUDGE_PROVIDER=openai requires OPENAI_API_KEY in .env")
+        return OpenAI(api_key=oa), "gpt-4o", True
+
     if oa:
         return OpenAI(api_key=oa), "gpt-4o", True
-    gq = os.getenv("GROQ_API_KEY", "").strip()
     if gq:
         base = os.getenv("GROQ_API_BASE", "https://api.groq.com/openai/v1").rstrip("/")
         model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
         return OpenAI(api_key=gq, base_url=base), model, False
-    raise SystemExit("Set OPENAI_API_KEY or GROQ_API_KEY for the eval judge LLM.")
+    raise SystemExit(
+        "Set OPENAI_API_KEY or GROQ_API_KEY for the eval judge LLM "
+        "(or EVAL_JUDGE_PROVIDER=groq with GROQ_API_KEY)."
+    )
 
 
 _judge_cached = None
@@ -203,6 +223,15 @@ def run_eval(base_url: str) -> dict:
     avg_latency = total_latency / max(total, 1)
     hallucination_rate = hallucinations / max(total, 1)
 
+    coverages = [
+        r.get("keyword_coverage", 0.0)
+        for r in results
+        if r.get("keyword_coverage") is not None and "error" not in r
+    ]
+    avg_keyword_coverage = (
+        round(sum(coverages) / max(len(coverages), 1), 2) if coverages else 0.0
+    )
+
     summary = {
         "timestamp": datetime.utcnow().isoformat(),
         "base_url": base_url,
@@ -211,6 +240,7 @@ def run_eval(base_url: str) -> dict:
         "failed": total - passed,
         "pass_rate": round(passed / max(total, 1), 2),
         "hallucination_rate": round(hallucination_rate, 2),
+        "avg_keyword_coverage": avg_keyword_coverage,
         "avg_latency_ms": round(avg_latency),
         "results": results,
     }
@@ -227,6 +257,7 @@ def run_eval(base_url: str) -> dict:
     print(f"\n📊 SUMMARY")
     print(f"   Pass rate:         {summary['pass_rate'] * 100:.0f}%  ({passed}/{total})")
     print(f"   Hallucination rate:{hallucination_rate * 100:.0f}%")
+    print(f"   Avg keyword cov.:  {avg_keyword_coverage * 100:.0f}%")
     print(f"   Avg latency:       {avg_latency:.0f}ms")
     print(f"   Results saved:     {out_path}")
 

@@ -88,11 +88,6 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
           </div>
         </button>
       </div>
-      <p className="text-neon-green/50 text-xs sm:text-sm mt-3 sm:mt-4 text-center font-mono opacity-70 tracking-widest flex flex-wrap items-center justify-center gap-3 sm:gap-4 backdrop-blur">
-        <span className="flex items-center justify-center gap-2 px-2 py-1 border border-neon-green/20 rounded hover:border-neon-green/50 transition-colors"><span>🔒</span> <span className="text-neon-cyan/60">SECURE</span></span>
-        <span className="text-neon-cyan/30 animate-pulse">◆</span>
-        <span className="flex items-center justify-center gap-2 px-2 py-1 border border-neon-green/20 rounded hover:border-neon-green/50 transition-colors"><span>💬</span> <span className="text-neon-green/70">RORI AI</span></span>
-      </p>
     </form>
   );
 }

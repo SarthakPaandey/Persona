@@ -27,10 +27,11 @@ def fetch_recent_calls(limit: int = 50) -> list:
         return []
     headers = {"Authorization": f"Bearer {VAPI_API_KEY}"}
     with httpx.Client() as client:
+        # Vapi list-calls accepts limit, assistantId, etc. — not sortOrder (returns 400).
         res = client.get(
             f"{VAPI_API_BASE}/call",
             headers=headers,
-            params={"limit": limit, "sortOrder": "DESC"},
+            params={"limit": limit},
         )
         res.raise_for_status()
         data = res.json()
@@ -91,7 +92,16 @@ def run_eval() -> dict:
         print("   Skipping: no VAPI_API_KEY")
         return metrics
 
-    calls = fetch_recent_calls(limit=50)
+    try:
+        calls = fetch_recent_calls(limit=50)
+    except httpx.HTTPStatusError as e:
+        err = f"Vapi API HTTP {e.response.status_code}: {e.response.text[:300]}"
+        print(f"   Error: {err}")
+        return {"error": err}
+    except httpx.RequestError as e:
+        err = f"Vapi request failed: {e}"
+        print(f"   Error: {err}")
+        return {"error": err}
     metrics = analyze_calls(calls)
 
     print("\n📊 VOICE QUALITY METRICS")

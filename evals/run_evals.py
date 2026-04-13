@@ -58,6 +58,7 @@ def main():
         all_results["chat"] = {
             "pass_rate": chat_results["pass_rate"],
             "hallucination_rate": chat_results["hallucination_rate"],
+            "avg_keyword_coverage": chat_results.get("avg_keyword_coverage", 0),
             "avg_latency_ms": chat_results["avg_latency_ms"],
         }
     else:
@@ -70,7 +71,11 @@ def main():
 
     if not args.skip_voice:
         print_section("3 / 3 · Voice Quality Eval")
-        voice_results = run_voice_eval()
+        try:
+            voice_results = run_voice_eval()
+        except Exception as e:
+            voice_results = {"error": str(e)}
+            print(f"   Voice eval crashed: {e}")
         all_results["voice"] = voice_results
     else:
         print_section("3 / 3 · Voice Quality Eval  [SKIPPED]")
@@ -86,6 +91,9 @@ def main():
         )
         print(
             f"  Chat avg latency:        {all_results['chat']['avg_latency_ms']}ms"
+        )
+        print(
+            f"  Chat avg keyword cov.:   {all_results['chat'].get('avg_keyword_coverage', 0) * 100:.0f}%"
         )
     print(f"  Booking flow:            {all_results['booking']['overall']}")
     if not args.skip_voice and not all_results["voice"].get("skipped"):

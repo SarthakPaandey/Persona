@@ -5,6 +5,7 @@ import json
 import re
 import time as time_module
 from datetime import datetime, time, timedelta
+from threading import Lock
 import structlog
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -27,8 +28,12 @@ VOICE_DEFAULT_TIMEZONE = "Asia/Kolkata"
 _CALENDAR_FETCH_TIMEOUT = 5     # seconds — slots fetch
 _CALENDAR_BOOK_TIMEOUT  = 8     # seconds — booking creation
 
-# Simple in-memory dedup / rate-limiter for tool calls within a single webhook
-_ACTIVE_CALLS: Dict[str, asyncio.Task] = {}
+# Short-lived, in-memory tool execution cache. Vapi can retry or redeliver the
+# same tool call, so we return the original result instead of re-booking.
+_TOOL_RESULT_TTL_SECONDS = 10 * 60
+_ACTIVE_CALLS: Dict[str, asyncio.Task[str]] = {}
+_RECENT_TOOL_RESULTS: Dict[str, tuple[float, str]] = {}
+_TOOL_CACHE_LOCK = Lock()
 
 # ---------------------------------------------------------------------------
 # Profile facts baked in — the LLM can answer *any* common voice question
@@ -198,6 +203,141 @@ def _extract_tool_call_info(tool_call: Dict[str, Any]):
         raw_keys=list(tool_call.keys()),
     )
     return call_id, fn_name, arguments
+
+
+def _extract_request_scope_id(body: Dict[str, Any]) -> str:
+    """Best-effort call/session identifier for idempotent tool execution."""
+    message = body.get("message", {})
+
+    candidates = [
+        body.get("call"),
+        message.get("call"),
+        body.get("callId"),
+        body.get("call_id"),
+        message.get("callId"),
+        message.get("call_id"),
+    ]
+
+    for candidate in candidates:
+        if isinstance(candidate, dict):
+            scope_id = str(candidate.get("id", "")).strip()
+            if scope_id:
+                return scope_id
+        elif isinstance(candidate, str):
+            scope_id = candidate.strip()
+            if scope_id:
+                return scope_id
+
+    return ""
+
+
+def _cleanup_tool_cache(now: Optional[float] = None) -> None:
+    """Drop expired cached tool results."""
+    reference = now if now is not None else time_module.monotonic()
+    expired_keys = [
+        key
+        for key, (completed_at, _result) in _RECENT_TOOL_RESULTS.items()
+        if reference - completed_at > _TOOL_RESULT_TTL_SECONDS
+    ]
+    for key in expired_keys:
+        _RECENT_TOOL_RESULTS.pop(key, None)
+
+
+def _tool_execution_key(
+    body: Dict[str, Any],
+    fn_name: str,
+    call_id: str,
+    arguments: Dict[str, Any],
+) -> str:
+    """Build a stable key so duplicate webhook deliveries reuse prior results."""
+    scope_id = _extract_request_scope_id(body)
+    args_key = (
+        json.dumps(arguments, sort_keys=True, default=str)
+        if arguments
+        else ""
+    )
+
+    # Booking must be idempotent even if the model reissues the same call with a
+    # fresh toolCallId, so prefer the confirmed slot fingerprint within a call.
+    if fn_name == "book_meeting" and scope_id and args_key:
+        return f"{scope_id}::{fn_name}::{args_key}"
+
+    if call_id:
+        prefix = f"{scope_id}::" if scope_id else ""
+        return f"{prefix}{fn_name}::{call_id}"
+
+    if not args_key:
+        return f"{scope_id}::{fn_name}" if scope_id else fn_name
+
+    if scope_id:
+        return f"{scope_id}::{fn_name}::{args_key}"
+    return f"{fn_name}::{args_key}"
+
+
+def _reset_tool_execution_state() -> None:
+    """Test helper to clear in-memory tool dedupe state."""
+    _ACTIVE_CALLS.clear()
+    _RECENT_TOOL_RESULTS.clear()
+
+
+async def _dispatch_idempotently(
+    request: Request,
+    body: Dict[str, Any],
+    fn_name: str,
+    params: Dict[str, Any],
+    call_id: str = "",
+) -> str:
+    """Execute a tool once per logical call, reusing in-flight/completed results."""
+    execution_key = _tool_execution_key(
+        body=body,
+        fn_name=fn_name,
+        call_id=call_id,
+        arguments=params,
+    )
+
+    with _TOOL_CACHE_LOCK:
+        now = time_module.monotonic()
+        _cleanup_tool_cache(now)
+
+        cached = _RECENT_TOOL_RESULTS.get(execution_key)
+        if cached is not None:
+            logger.info(
+                "vapi_tool_result_cache_hit",
+                fn_name=fn_name,
+                call_id=call_id,
+                execution_key=execution_key,
+            )
+            return cached[1]
+
+        task = _ACTIVE_CALLS.get(execution_key)
+        created_task = task is None
+        if created_task:
+            task = asyncio.create_task(_dispatch(request, fn_name, params))
+            _ACTIVE_CALLS[execution_key] = task
+        else:
+            logger.info(
+                "vapi_tool_call_joined_inflight",
+                fn_name=fn_name,
+                call_id=call_id,
+                execution_key=execution_key,
+            )
+
+    assert task is not None
+
+    try:
+        result = await task
+    finally:
+        if created_task:
+            with _TOOL_CACHE_LOCK:
+                if task.done() and not task.cancelled() and task.exception() is None:
+                    _RECENT_TOOL_RESULTS[execution_key] = (
+                        time_module.monotonic(),
+                        task.result(),
+                    )
+                if _ACTIVE_CALLS.get(execution_key) is task:
+                    _ACTIVE_CALLS.pop(execution_key, None)
+
+    return result
 
 
 def _safe_timezone_name(candidate: str) -> str:
@@ -443,7 +583,13 @@ async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
             logger.info("vapi_tool_call_deduped", call_id=call_id, fn_name=fn_name)
             result_text = cached_results[cache_key]
         else:
-            result_text = await _dispatch(request, fn_name, arguments)
+            result_text = await _dispatch_idempotently(
+                request,
+                body,
+                fn_name,
+                arguments,
+                call_id=call_id,
+            )
             cached_results[cache_key] = result_text
 
         results.append({"toolCallId": call_id, "result": result_text})
@@ -457,10 +603,17 @@ async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
 
 async def _handle_function_call(request: Request, body: Dict[str, Any]):
     fc = body["message"].get("functionCall", {})
+    call_id = str(fc.get("id", "")).strip()
     fn_name = fc.get("name", "")
     parameters = fc.get("parameters", {})
     logger.info("vapi_legacy_function_call", name=fn_name)
-    result = await _dispatch(request, fn_name, parameters)
+    result = await _dispatch_idempotently(
+        request,
+        body,
+        fn_name,
+        parameters,
+        call_id=call_id,
+    )
     return {"result": result}
 
 
