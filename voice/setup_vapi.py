@@ -73,8 +73,8 @@ TOOL_DEFINITIONS = [
         "function": {
             "name": "book_meeting",
             "description": (
-                "Book a meeting on the calendar. Only call this after "
-                "collecting the caller's confirmed time slot."
+                "Book a meeting on the calendar. Only call this after the caller "
+                "confirms one exact slot from get_availability."
             ),
             "parameters": {
                 "type": "object",
@@ -225,8 +225,12 @@ WHY HE IS THE RIGHT FIT:
         "3. Only call get_github_info if the user asks for technical deep-dive on ONE specific repo.\n"
         "4. Only call get_availability or book_meeting for scheduling requests.\n"
         "5. NEVER call the same tool twice in one turn. If a tool errors, answer from the profile.\n"
-        "6. For booking: ask ONLY when they are free — no name or email needed.\n"
-        "7. Use 'he'/'his' for the Captain, never 'they'/'their'.\n"
+        "6. For booking: call get_availability first, then ask when the interviewer is free.\n"
+        "7. Suggest one or more matching available slots from Sarthak's calendar and ask for confirmation.\n"
+        "8. Do not ask for caller contact details.\n"
+        "9. If the user says vague time ranges like 'tomorrow after 3 PM', do not book yet. "
+        "Offer matching slots and ask them to confirm one.\n"
+        "10. Use 'he'/'his' for the Captain, never 'they'/'their'.\n"
     )
 
     return {

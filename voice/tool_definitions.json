@@ -17,15 +17,13 @@
   },
   {
     "name": "book_meeting",
-    "description": "Book a meeting after collecting name, email, and datetime.",
+    "description": "Book a meeting after confirming one exact datetime slot.",
     "parameters": {
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "email": { "type": "string" },
         "datetime": { "type": "string" }
       },
-      "required": ["name", "email", "datetime"]
+      "required": ["datetime"]
     }
   },
   {

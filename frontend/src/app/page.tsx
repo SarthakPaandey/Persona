@@ -9,7 +9,7 @@ import { usePersona } from "@/hooks/usePersona";
 
  const SpaceBackground = () => {
    const [stars, setStars] = useState<
-     { id: number; left: string; top: string; delay: string; duration: string }[]
+     { id: number; left: string; top: string; delay: string; duration: string; size: number }[]
    >([]);
    const [isMobile, setIsMobile] = useState(false);
 
@@ -19,14 +19,19 @@ import { usePersona } from "@/hooks/usePersona";
      setIsMobile(checkMobile);
      
      // Generate stars only on client side to avoid hydration mismatch
-     const starCount = checkMobile ? 30 : 100;
+     const starCount = checkMobile ? 40 : 120;
      
      const generatedStars = Array.from({ length: starCount }).map((_, i) => ({
        id: i,
-       left: `${Math.random() * 100}vw`,
+       // Stars start scattered across the screen
+       left: `${Math.random() * 120}vw`,
        top: `${Math.random() * 100}vh`,
-       delay: `${Math.random() * 5}s`,
-       duration: `${3 + Math.random() * 7}s`,
+       // Randomise delay so stars don't all spawn at once
+       delay: `${Math.random() * 10}s`,
+       // Faster = closer (parallax). Range: 2s (close) to 12s (distant)
+       duration: `${2 + Math.random() * 10}s`,
+       // Bigger = closer (parallax)
+       size: Math.random() * 2 + 1,
      }));
      setStars(generatedStars);
    }, []);
@@ -40,8 +45,8 @@ import { usePersona } from "@/hooks/usePersona";
            style={{
              left: star.left,
              top: star.top,
-             width: `${Math.random() * 2 + 1}px`,
-             height: `${Math.random() * 2 + 1}px`,
+             width: `${star.size}px`,
+             height: `${star.size}px`,
              animationDelay: star.delay,
              animationDuration: star.duration,
            }}
@@ -153,7 +158,7 @@ export default function Home() {
       <SpaceBackground />
 
       <div className="relative z-10 flex flex-col h-screen max-w-5xl mx-auto p-4 sm:p-6">
-        <div className="terminal-container flex flex-col flex-1 h-full rounded-sm overflow-hidden relative">
+        <div className="terminal-container terminal-float flex flex-col flex-1 h-full rounded-sm overflow-hidden relative">
           <div className="crt-overlay"></div>
           <Header
             name="Sarthak Pandey"

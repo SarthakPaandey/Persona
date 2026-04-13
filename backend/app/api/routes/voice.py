@@ -2,8 +2,11 @@
 
 import asyncio
 import json
+import re
+from datetime import datetime, time, timedelta
 import structlog
 from typing import Any, Dict, List
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
 from langchain_openai import ChatOpenAI
@@ -16,6 +19,7 @@ router = APIRouter()
 
 # Well under Vapi's hard 20-second webhook timeout
 VOICE_LLM_TIMEOUT_SECONDS = 12
+VOICE_DEFAULT_TIMEZONE = "Asia/Kolkata"
 
 # ---------------------------------------------------------------------------
 # Profile facts baked in — the LLM can answer *any* common voice question
@@ -187,6 +191,182 @@ def _extract_tool_call_info(tool_call: Dict[str, Any]):
     return call_id, fn_name, arguments
 
 
+def _safe_timezone_name(candidate: str) -> str:
+    """Return a valid timezone name or the default timezone."""
+    try:
+        ZoneInfo(candidate)
+        return candidate
+    except Exception:
+        return VOICE_DEFAULT_TIMEZONE
+
+
+def _parse_iso_datetime(value: str, timezone: str) -> datetime | None:
+    """Parse an ISO datetime string, attaching timezone when naive."""
+    raw = (value or "").strip()
+    if not raw:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=ZoneInfo(timezone))
+
+    return parsed.astimezone(ZoneInfo(timezone))
+
+
+def _extract_requested_day_offset(text: str) -> int | None:
+    """Infer day offset from natural-language requests."""
+    lowered = (text or "").lower()
+    if "day after tomorrow" in lowered:
+        return 2
+    if "tomorrow" in lowered:
+        return 1
+    if "today" in lowered:
+        return 0
+    return None
+
+
+def _extract_after_time(text: str) -> time | None:
+    """Extract phrases like "after 3 PM" into a time constraint."""
+    match = re.search(
+        r"\bafter\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+
+    hour = int(match.group(1))
+    minute = int(match.group(2) or 0)
+    meridiem = (match.group(3) or "").lower()
+
+    if meridiem:
+        if hour == 12:
+            hour = 0
+        if meridiem == "pm":
+            hour += 12
+
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        return None
+    return time(hour=hour, minute=minute)
+
+
+def _slot_datetime(slot: Dict[str, Any], timezone: str) -> datetime | None:
+    """Parse a slot's start timestamp in the target timezone."""
+    return _parse_iso_datetime(str(slot.get("start", "")), timezone=timezone)
+
+
+def _build_slot_pairs(
+    slots: List[Dict[str, Any]],
+    timezone: str,
+) -> List[tuple[datetime, Dict[str, Any]]]:
+    """Build (slot_datetime, slot_payload) pairs for valid slots only."""
+    pairs: List[tuple[datetime, Dict[str, Any]]] = []
+    for slot in slots:
+        slot_dt = _slot_datetime(slot, timezone=timezone)
+        if slot_dt is not None:
+            pairs.append((slot_dt, slot))
+    return pairs
+
+
+def _pick_slot_from_iso_request(
+    requested_dt: datetime,
+    slot_pairs: List[tuple[datetime, Dict[str, Any]]],
+) -> Dict[str, Any] | None:
+    """Pick an exact slot match first, else the closest future slot."""
+    for slot_dt, slot in slot_pairs:
+        if abs((slot_dt - requested_dt).total_seconds()) < 60:
+            return slot
+
+    future = [pair for pair in slot_pairs if pair[0] >= requested_dt]
+    if not future:
+        return None
+    return min(future, key=lambda pair: pair[0])[1]
+
+
+def _matches_phrase_constraints(
+    slot_dt: datetime,
+    timezone: str,
+    target_date,
+    after_time: time | None,
+) -> bool:
+    """Return True when a slot matches phrase-derived date/time constraints."""
+    local_dt = slot_dt.astimezone(ZoneInfo(timezone))
+
+    if target_date is not None and local_dt.date() != target_date:
+        return False
+    if after_time is not None and local_dt.time() < after_time:
+        return False
+    return True
+
+
+def _pick_slot_from_phrase_request(
+    requested: str,
+    slot_pairs: List[tuple[datetime, Dict[str, Any]]],
+    timezone: str,
+) -> Dict[str, Any] | None:
+    """Pick a slot from natural-language phrasing like 'tomorrow after 3 PM'."""
+    lowered = (requested or "").lower()
+    day_offset = _extract_requested_day_offset(lowered)
+    after_time = _extract_after_time(lowered)
+
+    target_date = None
+    if day_offset is not None:
+        now_local = datetime.now(ZoneInfo(timezone))
+        target_date = (now_local + timedelta(days=day_offset)).date()
+
+    matches = [
+        (slot_dt, slot)
+        for slot_dt, slot in slot_pairs
+        if _matches_phrase_constraints(slot_dt, timezone, target_date, after_time)
+    ]
+    if not matches:
+        return None
+    return min(matches, key=lambda pair: pair[0])[1]
+
+
+def _select_best_slot(
+    requested: str,
+    slots: List[Dict[str, Any]],
+    timezone: str,
+) -> Dict[str, Any] | None:
+    """Map a requested datetime phrase to the closest valid available slot."""
+    if not slots:
+        return None
+
+    slot_pairs = _build_slot_pairs(slots, timezone=timezone)
+    if not slot_pairs:
+        return None
+
+    requested_dt = _parse_iso_datetime(requested, timezone=timezone)
+    if requested_dt is not None:
+        return _pick_slot_from_iso_request(requested_dt, slot_pairs)
+
+    return _pick_slot_from_phrase_request(requested, slot_pairs, timezone)
+
+
+def _format_slot_suggestions(
+    calendar_service: CalendarService,
+    slots: List[Dict[str, Any]],
+    timezone: str,
+    limit: int = 3,
+) -> str:
+    """Format a short, human-readable list of slot suggestions."""
+    labels: List[str] = []
+    for slot in slots[:limit]:
+        start = str(slot.get("start", ""))
+        label = slot.get("formatted") or calendar_service.format_slot_label(
+            start,
+            timezone=timezone,
+        )
+        labels.append(label)
+
+    return ", ".join(labels)
+
+
 # ---------------------------------------------------------------------------
 # Main webhook
 # ---------------------------------------------------------------------------
@@ -232,9 +412,19 @@ async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
     logger.info("vapi_tool_calls", count=len(tool_call_list))
 
     results = []
+    cached_results: Dict[tuple[str, str], str] = {}
     for tc in tool_call_list:
         call_id, fn_name, arguments = _extract_tool_call_info(tc)
-        result_text = await _dispatch(request, fn_name, arguments)
+        args_key = json.dumps(arguments, sort_keys=True, default=str)
+        cache_key = (fn_name, args_key)
+
+        if cache_key in cached_results:
+            logger.info("vapi_tool_call_deduped", call_id=call_id, fn_name=fn_name)
+            result_text = cached_results[cache_key]
+        else:
+            result_text = await _dispatch(request, fn_name, arguments)
+            cached_results[cache_key] = result_text
+
         results.append({"toolCallId": call_id, "result": result_text})
 
     return {"results": results}
@@ -310,21 +500,74 @@ async def _get_availability(request: Request) -> str:
 async def _book_meeting(request: Request, parameters: Dict[str, Any]) -> str:
     settings = request.app.state.settings
     calendar_service = CalendarService(settings)
-    datetime_str = parameters.get("datetime", "")
-    if not datetime_str:
-        return "I need a preferred time to book. Could you tell me when you are free?"
+    requested_time = str(parameters.get("datetime", "")).strip()
+    timezone = _safe_timezone_name(getattr(settings, "calcom_timezone", VOICE_DEFAULT_TIMEZONE))
+
+    available_slots: List[Dict[str, Any]] = []
+    try:
+        available_slots = await asyncio.wait_for(
+            calendar_service.get_available_slots(timezone=timezone),
+            timeout=10,
+        )
+    except Exception as e:
+        logger.warning("book_meeting_slots_unavailable", error=str(e))
+
+    if not requested_time:
+        if available_slots:
+            suggestions = _format_slot_suggestions(calendar_service, available_slots, timezone)
+            return (
+                "I need one exact time to lock the booking. "
+                f"The next bookable options are: {suggestions}. "
+                "Tell me which one you want."
+            )
+        return "I need an exact date and time to book. Could you share that slot?"
+
+    selected_slot = _select_best_slot(
+        requested=requested_time,
+        slots=available_slots,
+        timezone=timezone,
+    )
+
+    if selected_slot is None and available_slots:
+        suggestions = _format_slot_suggestions(calendar_service, available_slots, timezone)
+        return (
+            "I could not match that exact request to a currently bookable slot. "
+            f"Please choose one of these: {suggestions}."
+        )
+
+    start_time = str(selected_slot.get("start")) if selected_slot else requested_time
+    attendee_name = str(parameters.get("name", "")).strip() or "Interviewer (Voice)"
+    attendee_email = (
+        str(parameters.get("email", "")).strip() or "interviewer-voice@example.com"
+    )
+
+    booked_label = (
+        str(selected_slot.get("formatted", ""))
+        if selected_slot
+        else calendar_service.format_slot_label(start_time, timezone=timezone)
+    )
+
     try:
         await asyncio.wait_for(
             calendar_service.create_booking(
-                name="Voice Caller",
-                email="anonymous-voice-caller@example.com",
-                start_time=datetime_str,
+                name=attendee_name,
+                email=attendee_email,
+                start_time=start_time,
+                timezone=timezone,
+                notes=f"Voice booking request: {requested_time}",
             ),
             timeout=10,
         )
-        return f"Locked in! I've booked a meeting for you at {datetime_str}."
+        return f"Locked in! I have booked your meeting for {booked_label} ({timezone})."
     except Exception as e:
         logger.error("book_meeting_error", error=str(e))
+        if available_slots:
+            suggestions = _format_slot_suggestions(calendar_service, available_slots, timezone)
+            return (
+                "I could not lock that exact slot because it may no longer be available. "
+                f"The next bookable options are: {suggestions}. "
+                "Tell me which one to book."
+            )
         return (
             f"I had trouble booking that slot. "
             f"Please try at https://cal.com/{settings.calcom_username}"
