@@ -45,13 +45,10 @@ github_exclude_repos:
 github_showcase_repos:
   - portfolio
   - FinTracker
-  - FlowEx
-  - MrBully
-  - StoryTeller
-  - VectorAI
-  - ScalerQuestLinker
   - SSTBORROWING
+  - MrBully
   - Tradinguiz
+  - StoryTeller
   - AnonymChat
   - bhashini
   - BOT-NINE

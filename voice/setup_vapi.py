@@ -26,6 +26,7 @@ EXISTING_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID", "")
 PERSONA_NAME = os.getenv("PERSONA_NAME", "AI Candidate")
 PERSONA_ROLE = os.getenv("PERSONA_ROLE", "AI Engineer")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")
+VAPI_MODEL = os.getenv("VAPI_MODEL", "llama-3.1-8b-instant")
 
 WEBHOOK_URL = f"{BACKEND_URL}/api/voice/vapi/webhook"
 
@@ -62,9 +63,21 @@ TOOL_DEFINITIONS = [
             "description": (
                 "Fetch real calendar availability for the next 7 days. "
                 "Use this when the caller asks about scheduling, availability, "
-                "or wants to book."
+                "or wants to book. Pass the caller's scheduling request verbatim "
+                "in request so the backend can filter the options."
             ),
-            "parameters": {"type": "object", "properties": {}},
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "request": {
+                        "type": "string",
+                        "description": (
+                            "The caller's scheduling request in natural language, "
+                            "for example 'after 5 PM on April fifteenth'."
+                        ),
+                    }
+                },
+            },
         },
         "server": {"url": WEBHOOK_URL},
     },
@@ -74,17 +87,28 @@ TOOL_DEFINITIONS = [
             "name": "book_meeting",
             "description": (
                 "Book a meeting on the calendar. Only call this after the caller "
-                "confirms one exact slot from get_availability."
+                "confirms one exact slot from get_availability. Always pass the "
+                "caller's exact confirmation words in selection. Do not invent a "
+                "new date if the caller only repeats a time range."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "datetime": {
                         "type": "string",
-                        "description": "ISO 8601 datetime string for the meeting start time, e.g. 2024-03-15T14:00:00Z.",
+                        "description": (
+                            "ISO 8601 datetime string for the meeting start time, "
+                            "but only when you are certain of the exact slot."
+                        ),
+                    },
+                    "selection": {
+                        "type": "string",
+                        "description": (
+                            "The caller's exact confirmation phrase, for example "
+                            "'book it from 5:30 PM to 6 PM'."
+                        ),
                     },
                 },
-                "required": ["datetime"],
             },
         },
         "server": {"url": WEBHOOK_URL},
@@ -192,14 +216,13 @@ TECHNICAL SKILLS:
 - Cloud/Infra: Railway, Vercel, Docker, GitHub Actions
 
 KEY PROJECTS:
-• FinTracker — AI personal finance app with autonomous LLM-powered categorization
-• FlowEx — Algorithmic trading platform with backtesting and real-time signals
+• FinTracker — AI personal finance app built with Next.js for tracking expenses and budgets with AI-driven insights
+• SSTBORROWING — Unified campus booking system for facilities and equipment with QR-based check-ins and automated penalty management
+• MrBully — Android accountability app using AI interventions and strict phrase-based unlocks to stop distractions
+• Tradinguiz — Flutter-based mobile quiz application with a Golang backend for interactive multiple-choice quizzes
+• StoryTeller — Interactive web-based storytelling game where AI generates stories and users choose options to progress
+• AnonymChat — Real-time anonymous chat app built with React, MUI, and Firebase for secure, private communication
 • portfolio — AI persona site with voice agent + RAG chatbot (this system you are running)
-• VectorAI — AI SaaS with embeddings and semantic search
-• StoryTeller — Multi-modal AI story generation app
-• MrBully — AI-powered social feature
-• ScalerQuestLinker — Tool for Scaler learners ecosystem
-• AnonymChat — Real-time anonymous chat with modern stack
 
 WHY HE IS THE RIGHT FIT:
 • Shipped production AI agents to real users — not notebooks, real deployments
@@ -229,9 +252,10 @@ WHY HE IS THE RIGHT FIT:
         "ALL available slots for 7 days — there is no reason to call it again. If a tool errors, "
         "answer from the profile or offer the cal.com link.\n"
         "6. CRITICAL: Call get_availability EXACTLY ONCE per scheduling request. It returns the "
-        "full 7-day schedule. Do NOT call it multiple times for different days or time ranges.\n"
+        "full 7-day schedule. Pass the user's scheduling words in the request field so the backend "
+        "can filter. Do NOT call it multiple times for different days or time ranges.\n"
         "7. For booking: call get_availability once, review the slots, suggest matching ones, "
-        "and ask the caller to confirm one.\n"
+        "and ask the caller to confirm one. When they confirm, pass their exact words in selection.\n"
         "8. Do not ask for caller contact details.\n"
         "9. If the user says vague time ranges like 'tomorrow after 3 PM', call get_availability "
         "ONCE, filter the results yourself, offer matching slots, and ask them to confirm one. "
@@ -240,13 +264,14 @@ WHY HE IS THE RIGHT FIT:
         "11. Avoid repeating your identity sentence in normal replies.\n"
         "12. If an utterance sounds unclear or ambiguous, ask one short clarification question.\n"
         "13. Handle follow-ups naturally and conversationally, not as scripted Q&A.\n"
+        "14. Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.\n"
     )
 
     return {
         "name": f"AI Persona - {PERSONA_NAME}",
         "model": {
             "provider": "groq",
-            "model": "llama-3.1-8b-instant",
+            "model": VAPI_MODEL,
             "temperature": 0.3,
             "systemPrompt": system_prompt,
             "toolIds": tool_ids,

@@ -12,18 +12,23 @@
   },
   {
     "name": "get_availability",
-    "description": "Fetch real calendar availability for the next 7 days.",
-    "parameters": { "type": "object", "properties": {} }
-  },
-  {
-    "name": "book_meeting",
-    "description": "Book a meeting after confirming one exact datetime slot.",
+    "description": "Fetch real calendar availability for the next 7 days and pass the caller's scheduling request so the backend can filter the options.",
     "parameters": {
       "type": "object",
       "properties": {
-        "datetime": { "type": "string" }
-      },
-      "required": ["datetime"]
+        "request": { "type": "string" }
+      }
+    }
+  },
+  {
+    "name": "book_meeting",
+    "description": "Book a meeting after confirming one exact slot. Pass the caller's exact confirmation words in selection and do not invent a new date.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "datetime": { "type": "string" },
+        "selection": { "type": "string" }
+      }
     }
   },
   {
