@@ -188,7 +188,7 @@ class CalendarService:
                     f"{CALCOM_V2_BASE}/v2/slots",
                     params=params,
                     headers=self._auth_headers(CAL_SLOTS_API_VERSION),
-                    timeout=15.0,
+                    timeout=8.0,
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -238,7 +238,7 @@ class CalendarService:
                     f"{CALCOM_V2_BASE}/v2/bookings",
                     headers=self._auth_headers(CAL_BOOKINGS_API_VERSION),
                     json=payload,
-                    timeout=20.0,
+                    timeout=10.0,
                 )
                 response.raise_for_status()
                 booking = response.json()

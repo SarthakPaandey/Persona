@@ -82,8 +82,8 @@ class Settings(BaseSettings):
     # LLM runtime
     # Completion token budget for chat responses. Increase if you see responses ending mid-sentence
     # with finish_reason="length".
-    llm_max_tokens: int = 4096
-    llm_request_timeout_seconds: int = 45
+    llm_max_tokens: int = 1200
+    llm_request_timeout_seconds: int = 20
     # Ordered chat provider chain (comma-separated): nvidia, modelscope, groq, openai
     # Example for low latency: "groq,nvidia,modelscope,openai" or "groq".
     llm_provider_order: str = "nvidia,modelscope,groq,openai"
@@ -93,6 +93,8 @@ class Settings(BaseSettings):
     chunk_overlap: int = 50
     retrieval_top_k: int = 5
     similarity_threshold: float = 0.7
+    rag_max_context_docs: int = 6
+    rag_max_chars_per_doc: int = 1200
 
     @model_validator(mode="after")
     def validate_llm_and_embedding_keys(self):

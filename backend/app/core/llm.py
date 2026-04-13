@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any, AsyncIterator, List, Sequence, Union
 
 import structlog
@@ -14,6 +15,32 @@ from app.config import Settings
 
 logger = structlog.get_logger()
 DEFAULT_PROVIDER_ORDER = ("nvidia", "modelscope", "groq", "openai")
+RATE_LIMIT_COOLDOWN_SECONDS = 300
+_provider_cooldowns: dict[str, float] = {}
+
+
+def _provider_id(model: BaseChatModel) -> str:
+    """Build a stable provider/model identifier for cooldown tracking."""
+    model_name = getattr(model, "model_name", getattr(model, "model", "unknown-model"))
+    api_base = getattr(model, "openai_api_base", "")
+    return f"{api_base}|{model_name}"
+
+
+def _is_rate_limit_error(error: Exception) -> bool:
+    """Detect provider-side throttling errors."""
+    msg = str(error).lower()
+    return "rate limit" in msg or "429" in msg or "too many requests" in msg
+
+
+def _is_provider_on_cooldown(model: BaseChatModel) -> bool:
+    """Return True when provider was recently rate-limited."""
+    until = _provider_cooldowns.get(_provider_id(model), 0.0)
+    return until > time.time()
+
+
+def _mark_provider_rate_limited(model: BaseChatModel) -> None:
+    """Temporarily deprioritize repeatedly rate-limited providers."""
+    _provider_cooldowns[_provider_id(model)] = time.time() + RATE_LIMIT_COOLDOWN_SECONDS
 
 
 def _nvidia_chat_api_key(settings: Settings) -> str:
@@ -105,15 +132,24 @@ class FallbackChatLLM(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         last: Exception | None = None
+        attempted = False
         for i, m in enumerate(self.models):
+            if _is_provider_on_cooldown(m):
+                logger.info("llm_provider_cooldown_skip", attempt=i + 1, provider=_provider_id(m))
+                continue
+            attempted = True
             try:
                 result = m._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
                 if _chat_result_text(result).strip():
                     return result
                 raise ValueError("LLM returned empty content")
             except Exception as e:
+                if _is_rate_limit_error(e):
+                    _mark_provider_rate_limited(m)
                 logger.warning("llm_fallback_invoke", attempt=i + 1, error=str(e)[:300])
                 last = e
+        if not attempted:
+            raise RuntimeError("All configured LLM providers are on cooldown after rate limits.")
         assert last is not None
         raise last
 
@@ -125,15 +161,24 @@ class FallbackChatLLM(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         last: Exception | None = None
+        attempted = False
         for i, m in enumerate(self.models):
+            if _is_provider_on_cooldown(m):
+                logger.info("llm_provider_cooldown_skip", attempt=i + 1, provider=_provider_id(m))
+                continue
+            attempted = True
             try:
                 result = await m._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
                 if _chat_result_text(result).strip():
                     return result
                 raise ValueError("LLM returned empty content")
             except Exception as e:
+                if _is_rate_limit_error(e):
+                    _mark_provider_rate_limited(m)
                 logger.warning("llm_fallback_ainvoke", attempt=i + 1, error=str(e)[:300])
                 last = e
+        if not attempted:
+            raise RuntimeError("All configured LLM providers are on cooldown after rate limits.")
         assert last is not None
         raise last
 
@@ -233,7 +278,16 @@ async def stream_chat_tokens(
     )
 
     last_error: Exception | None = None
+    attempted = False
     for idx, model in enumerate(candidates):
+        if _is_provider_on_cooldown(model):
+            logger.info(
+                "llm_provider_cooldown_skip",
+                attempt=idx + 1,
+                provider=_provider_id(model),
+            )
+            continue
+        attempted = True
         emitted = False
         try:
             async for chunk in model.astream(messages, **kwargs):
@@ -246,6 +300,8 @@ async def stream_chat_tokens(
                 return
             raise ValueError("LLM returned empty streamed content")
         except Exception as exc:
+            if _is_rate_limit_error(exc):
+                _mark_provider_rate_limited(model)
             if emitted:
                 logger.warning(
                     "llm_stream_interrupted",
@@ -256,6 +312,8 @@ async def stream_chat_tokens(
             logger.warning("llm_fallback_astream", attempt=idx + 1, error=str(exc)[:300])
             last_error = exc
 
+    if not attempted:
+        raise RuntimeError("All configured LLM providers are on cooldown after rate limits.")
     if last_error is not None:
         raise last_error
     raise ValueError("No streaming-capable LLM configured")

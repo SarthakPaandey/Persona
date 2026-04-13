@@ -205,10 +205,10 @@ class RAGEngine:
         )
 
     def _retrieve_k(self, query: str) -> int:
-        """Use a larger top-k when the user asks about projects/GitHub (more candidates to rank)."""
+        """Use a moderately larger top-k for project queries without exploding prompt size."""
         k = self.settings.retrieval_top_k
         if self._is_project_query(query):
-            return min(16, k + 8)
+            return min(8, k + 3)
         return k
 
     def _merge_showcase_boost(self, query: str, docs_with_scores: List[tuple]) -> List[tuple]:
@@ -247,7 +247,7 @@ class RAGEngine:
             )
             try:
                 extra = self.vector_store.similarity_search_with_score(
-                    bias_q, k=min(24, len(showcase) + 14)
+                    bias_q, k=min(12, len(showcase) + 6)
                 )
             except Exception as e:
                 logger.warning("showcase boost search failed", error=str(e))
@@ -286,7 +286,8 @@ class RAGEngine:
             return (pri, score)
 
         items.sort(key=rank, reverse=True)
-        return items[:12]
+        max_docs = max(1, int(getattr(self.settings, "rag_max_context_docs", 6) or 6))
+        return items[:max_docs]
 
     def _filter_excluded_github(
         self, docs_with_scores: List[tuple], query: str
@@ -334,7 +335,8 @@ class RAGEngine:
                 after_filter=len(filtered),
             )
 
-            base = filtered if filtered else (results[:5] if results else [])
+            max_docs = max(1, int(getattr(self.settings, "rag_max_context_docs", 6) or 6))
+            base = filtered if filtered else (results[:max_docs] if results else [])
             merged = self._merge_showcase_boost(query, base)
             return merged if merged else base
 
@@ -347,11 +349,17 @@ class RAGEngine:
         if not docs_with_scores:
             return "No relevant documents found in the knowledge base."
 
+        max_docs = max(1, int(getattr(self.settings, "rag_max_context_docs", 6) or 6))
+        max_chars = max(200, int(getattr(self.settings, "rag_max_chars_per_doc", 1200) or 1200))
+
         context_parts = []
-        for i, (doc, score) in enumerate(docs_with_scores, 1):
+        for i, (doc, score) in enumerate(docs_with_scores[:max_docs], 1):
             source = doc.metadata.get("source", "unknown")
+            snippet = doc.page_content
+            if len(snippet) > max_chars:
+                snippet = snippet[:max_chars].rstrip() + "..."
             context_parts.append(
-                f"[Source {i}: {source} (relevance: {score:.2f})]\n{doc.page_content}"
+                f"[Source {i}: {source} (relevance: {score:.2f})]\n{snippet}"
             )
 
         return "\n\n---\n\n".join(context_parts)

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+import time as time_module
 from datetime import datetime, time, timedelta
 import structlog
 from typing import Any, Dict, List, Optional
@@ -17,9 +18,17 @@ from app.services.calendar_service import CalendarService
 logger = structlog.get_logger()
 router = APIRouter()
 
-# Well under Vapi's hard 20-second webhook timeout
+# Vapi has a hard 20-second webhook timeout.
+# Our total budget per webhook must stay under ~15s to leave network headroom.
 VOICE_LLM_TIMEOUT_SECONDS = 12
 VOICE_DEFAULT_TIMEZONE = "Asia/Kolkata"
+
+# Aggressive timeouts to stay well under Vapi's 20s limit
+_CALENDAR_FETCH_TIMEOUT = 5     # seconds — slots fetch
+_CALENDAR_BOOK_TIMEOUT  = 8     # seconds — booking creation
+
+# Simple in-memory dedup / rate-limiter for tool calls within a single webhook
+_ACTIVE_CALLS: Dict[str, asyncio.Task] = {}
 
 # ---------------------------------------------------------------------------
 # Profile facts baked in — the LLM can answer *any* common voice question
@@ -411,12 +420,24 @@ async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
 
     logger.info("vapi_tool_calls", count=len(tool_call_list))
 
+    # ── Deduplicate by function name ──────────────────────────────────
+    # Vapi / the LLM sometimes sends the SAME tool call 20-30 times in one
+    # webhook when the model is uncertain.  We execute each unique
+    # (fn_name, args) combination exactly once and reuse the result for
+    # all duplicates.  For parameterless functions like get_availability
+    # we further deduplicate by name alone.
     results = []
-    cached_results: Dict[tuple[str, str], str] = {}
+    cached_results: Dict[str, str] = {}          # cache_key → result
     for tc in tool_call_list:
         call_id, fn_name, arguments = _extract_tool_call_info(tc)
-        args_key = json.dumps(arguments, sort_keys=True, default=str)
-        cache_key = (fn_name, args_key)
+
+        # For parameterless functions, dedup by name only.
+        # For others, include args in the key.
+        if not arguments or arguments == {}:
+            cache_key = fn_name
+        else:
+            args_key = json.dumps(arguments, sort_keys=True, default=str)
+            cache_key = f"{fn_name}::{args_key}"
 
         if cache_key in cached_results:
             logger.info("vapi_tool_call_deduped", call_id=call_id, fn_name=fn_name)
@@ -487,7 +508,13 @@ async def _get_availability(request: Request) -> str:
     try:
         return await asyncio.wait_for(
             calendar_service.get_availability(),
-            timeout=10,
+            timeout=_CALENDAR_FETCH_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("availability_timeout")
+        return (
+            f"Calendar is taking a moment — you can also book directly at "
+            f"https://cal.com/{settings.calcom_username}"
         )
     except Exception as e:
         logger.error("availability_error", error=str(e))
@@ -503,12 +530,15 @@ async def _book_meeting(request: Request, parameters: Dict[str, Any]) -> str:
     requested_time = str(parameters.get("datetime", "")).strip()
     timezone = _safe_timezone_name(getattr(settings, "calcom_timezone", VOICE_DEFAULT_TIMEZONE))
 
+    # ── Fetch available slots (best-effort, short timeout) ────────────
     available_slots: List[Dict[str, Any]] = []
     try:
         available_slots = await asyncio.wait_for(
             calendar_service.get_available_slots(timezone=timezone),
-            timeout=10,
+            timeout=_CALENDAR_FETCH_TIMEOUT,
         )
+    except asyncio.TimeoutError:
+        logger.warning("book_meeting_slots_timeout")
     except Exception as e:
         logger.warning("book_meeting_slots_unavailable", error=str(e))
 
@@ -556,9 +586,15 @@ async def _book_meeting(request: Request, parameters: Dict[str, Any]) -> str:
                 timezone=timezone,
                 notes=f"Voice booking request: {requested_time}",
             ),
-            timeout=10,
+            timeout=_CALENDAR_BOOK_TIMEOUT,
         )
         return f"Locked in! I have booked your meeting for {booked_label} ({timezone})."
+    except asyncio.TimeoutError:
+        logger.error("book_meeting_timeout", start_time=start_time)
+        return (
+            f"The booking is being processed but took longer than expected. "
+            f"Please verify at https://cal.com/{settings.calcom_username}"
+        )
     except Exception as e:
         logger.error("book_meeting_error", error=str(e))
         if available_slots:
