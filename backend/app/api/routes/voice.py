@@ -59,7 +59,7 @@ WHY SARTHAK IS A STRONG FIT:
 - He is available immediately and is passionate about building AI that actually helps people learn
 
 EDUCATION:
-- B.Tech CSE, LPU, enrolled 2023 (Scaler AI/ML track)
+- Bachelor of Science in  CS, Scaler School Of Technology, enrolled 2023 (Scaler AI/ML track)
 - Scaler structured curriculum: ML fundamentals, deep learning, NLP, applied AI systems
 
 CONTACT / BOOKING:

@@ -181,7 +181,7 @@ def build_assistant_config(tool_ids: list) -> dict:
 CAPTAIN SARTHAK PANDEY — FULL PROFILE (answer any question from this):
 
 Role target: AI/ML Engineer (Scaler and similar AI-first companies)
-Education: B.Tech CSE, LPU (Scaler AI/ML Program, enrolled 2023)
+Education: Bachelor of Science in CS, Scaler School Of Technology, enrolled 2023 (Scaler AI/ML Program)
 
 TECHNICAL SKILLS:
 - Languages: Python (production async typed), TypeScript, JavaScript
