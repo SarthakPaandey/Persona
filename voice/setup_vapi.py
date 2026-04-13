@@ -74,25 +74,17 @@ TOOL_DEFINITIONS = [
             "name": "book_meeting",
             "description": (
                 "Book a meeting on the calendar. Only call this after "
-                "collecting the caller's name, email, and a confirmed time slot."
+                "collecting the caller's confirmed time slot."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Caller's full name.",
-                    },
-                    "email": {
-                        "type": "string",
-                        "description": "Caller's email address.",
-                    },
                     "datetime": {
                         "type": "string",
                         "description": "ISO 8601 datetime string for the meeting start time, e.g. 2024-03-15T14:00:00Z.",
                     },
                 },
-                "required": ["name", "email", "datetime"],
+                "required": ["datetime"],
             },
         },
         "server": {"url": WEBHOOK_URL},
@@ -197,8 +189,8 @@ def build_assistant_config(tool_ids: list) -> dict:
         '- If information is unavailable, say: "I don\'t have that specific information in my datacore right now." '
         "Then offer verified highlights.\n\n"
         "Use your tools to look up background information, check calendar availability, and book meetings.\n\n"
-        "For booking: collect the caller's name and email first, then propose slots, "
-        "then confirm using book_meeting."
+        "For booking: just collect the caller's preferred time, propose slots if needed, "
+        "and then confirm using book_meeting."
     )
 
     return {

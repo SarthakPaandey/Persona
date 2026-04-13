@@ -11,7 +11,7 @@ from app.services.calendar_service import CalendarService
 
 logger = structlog.get_logger()
 router = APIRouter()
-RAG_QUERY_TIMEOUT_SECONDS = 20
+RAG_QUERY_TIMEOUT_SECONDS = 50
 
 
 @router.post("/vapi/webhook")
@@ -151,28 +151,29 @@ async def _get_availability(request: Request) -> str:
 
 
 async def _book_meeting(request: Request, parameters: Dict[str, Any]) -> str:
-    """Book a meeting on the calendar."""
+    """Book a meeting on the calendar using generic values for voice callers."""
     settings = request.app.state.settings
     calendar_service = CalendarService(settings)
 
     try:
-        name = parameters.get("name", "")
-        email = parameters.get("email", "")
         datetime_str = parameters.get("datetime", "")
 
-        if not all([name, email, datetime_str]):
+        if not datetime_str:
             return (
-                "I need your name, email, and preferred time to book. "
-                "Could you provide those?"
+                "I need your preferred time to book. "
+                "Could you provide that?"
             )
+
+        # Use placeholder info for anonymous voice calls
+        name = "Voice Caller"
+        email = "anonymous-voice-caller@example.com"
 
         await calendar_service.create_booking(
             name=name, email=email, start_time=datetime_str
         )
 
         return (
-            f"Great! I've booked a meeting for {name} at {datetime_str}. "
-            f"A confirmation has been sent to {email}."
+            f"Great! I've booked a meeting for you at {datetime_str}. "
         )
     except Exception as e:
         logger.error("Failed to book meeting", error=str(e))
@@ -287,7 +288,7 @@ GROUNDING AND TOOL RULES (CRITICAL):
 1. Refer to yourself as RORI and represent Captain {settings.persona_name}
 2. Keep responses concise for voice — 2-3 sentences max unless asked for detail
 3. For ANY question about projects, GitHub, resume, skills, experience, education, or role fit, call get_background_info first and answer only from its result
-4. For booking: collect name, email, and preferred time, then use the book_meeting function
+4. For booking: collect preferred time, propose slots if needed, then use the book_meeting function
 5. If a specific repository is mentioned, call get_github_info with repo_name and the user's question
 6. Never make up information — only share what you retrieve from functions and the knowledge base
 7. If information is missing or uncertain, say: "I don't have that specific information in my datacore right now." and offer to summarize verified highlights
@@ -297,6 +298,6 @@ GROUNDING AND TOOL RULES (CRITICAL):
 AVAILABLE TOOLS:
 - get_background_info: Retrieve information about background, skills, experience
 - get_availability: Check real calendar availability
-- book_meeting: Book a meeting (needs name, email, datetime)
+- book_meeting: Book a meeting (needs datetime)
 - get_github_info: Get details about specific GitHub repositories
 """
