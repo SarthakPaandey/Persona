@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.cors import build_cors_origins
-from app.api.routes import calendar, chat, health, persona, voice
+from app.api.routes import calendar, chat, health, ingest, persona, voice
 from app.config import get_settings
 from app.core.rag_engine import RAGEngine
 from app.core.vector_store import VectorStoreManager
@@ -67,6 +67,7 @@ def create_app() -> FastAPI:
     application.include_router(persona.router, prefix="/api", tags=["Persona"])
     application.include_router(voice.router, prefix="/api/voice", tags=["Voice"])
     application.include_router(calendar.router, prefix="/api/calendar", tags=["Calendar"])
+    application.include_router(ingest.router, prefix="/api/ingest", tags=["Ingestion"])
 
     return application
 

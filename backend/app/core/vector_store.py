@@ -67,3 +67,13 @@ class VectorStoreManager:
         index = self._pc.Index(self.settings.pinecone_index_name)
         index.delete(delete_all=True, namespace=namespace)
         logger.info("Namespace deleted", namespace=namespace)
+
+    def delete_by_metadata(self, metadata_filter: dict, namespace: str = ""):
+        """Delete vectors matching a metadata filter in a namespace."""
+        index = self._pc.Index(self.settings.pinecone_index_name)
+        index.delete(filter=metadata_filter, namespace=namespace)
+        logger.info(
+            "Vectors deleted by metadata",
+            namespace=namespace,
+            metadata_filter=metadata_filter,
+        )

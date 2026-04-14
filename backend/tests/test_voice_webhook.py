@@ -224,3 +224,47 @@ def test_voice_booking_uses_recent_filtered_slots_for_time_only_confirmation(voi
     assert "Wed Apr 15" in result
     create_call = instance.create_booking.await_args
     assert create_call.kwargs["start_time"] == "2026-04-15T17:30:00+05:30"
+
+
+def test_voice_assistant_request_includes_tool_functions(voice_client):
+    response = voice_client.post(
+        "/api/voice/vapi/webhook",
+        json={"message": {"type": "assistant-request"}},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assistant = payload.get("assistant", {})
+    functions = assistant.get("functions", [])
+
+    fn_names = {item.get("name") for item in functions}
+    assert {"get_background_info", "get_availability", "book_meeting", "get_github_info"}.issubset(fn_names)
+    assert all(item.get("serverUrl", "").endswith("/api/voice/vapi/webhook") for item in functions)
+
+
+def test_voice_background_info_uses_fast_llm_path(voice_client):
+    with patch(
+        "app.api.routes.voice._fast_voice_answer",
+        new=AsyncMock(return_value="Fast response"),
+    ) as mock_fast:
+        response = voice_client.post(
+            "/api/voice/vapi/webhook",
+            json={
+                "call": {"id": "call-live"},
+                "message": {
+                    "type": "tool-calls",
+                    "toolCallList": [
+                        {
+                            "id": "tool-live",
+                            "name": "get_background_info",
+                            "arguments": {"question": "Show latest github projects"},
+                        }
+                    ],
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    result = response.json()["results"][0]["result"]
+    assert result == "Fast response"
+    mock_fast.assert_awaited_once()

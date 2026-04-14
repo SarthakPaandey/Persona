@@ -160,3 +160,47 @@ Book a meeting slot.
 
 Vapi webhook endpoint. Accepts function-call, assistant-request,
 end-of-call-report, and status-update event types.
+
+---
+
+## `POST /api/ingest/github`
+
+Refresh GitHub repository vectors.
+
+Query params:
+
+- `clear_existing` (bool, default `true`): remove existing GitHub documents
+  before re-ingesting.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "chunks_ingested": 42,
+  "clear_existing": true
+}
+```
+
+---
+
+## `POST /api/ingest/all`
+
+Run resume + GitHub ingestion in one request.
+
+Query params:
+
+- `clear_namespace` (bool, default `false`): if true, clears the full namespace
+  before ingesting.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "resume_chunks": 14,
+  "github_chunks": 42,
+  "total_chunks": 56,
+  "clear_namespace": false
+}
+```

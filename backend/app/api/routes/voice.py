@@ -232,11 +232,16 @@ def _extract_tool_call_info(tool_call: Dict[str, Any]):
       Nested: {"id": "...", "type": "function",
                "function": {"name": "fn", "arguments": "{...}"}}
     """
-    call_id = tool_call.get("id", "")
+    call_id = str(
+        tool_call.get("id")
+        or tool_call.get("toolCallId")
+        or tool_call.get("callId")
+        or ""
+    ).strip()
 
     # Flat format
-    fn_name = tool_call.get("name", "")
-    arguments = tool_call.get("arguments", {})
+    fn_name = str(tool_call.get("name") or tool_call.get("functionName") or "").strip()
+    arguments = _normalize_tool_arguments(tool_call.get("arguments", tool_call.get("args", {})))
 
     # Nested OpenAI format
     if not fn_name:
@@ -244,20 +249,7 @@ def _extract_tool_call_info(tool_call: Dict[str, Any]):
         if isinstance(fn_obj, dict):
             fn_name = fn_obj.get("name", "")
             raw_args = fn_obj.get("arguments", fn_obj.get("parameters", {}))
-            if isinstance(raw_args, str):
-                try:
-                    arguments = json.loads(raw_args)
-                except (json.JSONDecodeError, TypeError):
-                    arguments = {}
-            elif isinstance(raw_args, dict):
-                arguments = raw_args
-
-    # JSON-string arguments in flat format
-    if isinstance(arguments, str):
-        try:
-            arguments = json.loads(arguments)
-        except (json.JSONDecodeError, TypeError):
-            arguments = {}
+            arguments = _normalize_tool_arguments(raw_args)
 
     logger.info(
         "vapi_tool_call_parsed",
@@ -267,6 +259,19 @@ def _extract_tool_call_info(tool_call: Dict[str, Any]):
         raw_keys=list(tool_call.keys()),
     )
     return call_id, fn_name, arguments
+
+
+def _normalize_tool_arguments(raw_arguments: Any) -> Dict[str, Any]:
+    """Normalize tool arguments from dict or JSON-string payloads."""
+    if isinstance(raw_arguments, dict):
+        return raw_arguments
+    if isinstance(raw_arguments, str):
+        try:
+            parsed = json.loads(raw_arguments)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
 
 
 def _extract_request_scope_id(body: Dict[str, Any]) -> str:
@@ -420,6 +425,74 @@ def _safe_timezone_name(candidate: str) -> str:
         return candidate
     except Exception:
         return VOICE_DEFAULT_TIMEZONE
+
+
+def _assistant_functions(settings) -> List[Dict[str, Any]]:
+    """Return explicit function config so assistant-request always preserves tools."""
+    webhook_url = f"{settings.backend_url.rstrip('/')}/api/voice/vapi/webhook"
+    return [
+        {
+            "name": "get_background_info",
+            "description": (
+                "Retrieve information about background, skills, experience, "
+                "or GitHub projects."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string"},
+                },
+                "required": ["question"],
+            },
+            "async": False,
+            "serverUrl": webhook_url,
+        },
+        {
+            "name": "get_availability",
+            "description": (
+                "Fetch real calendar availability for the next 7 days. "
+                "Pass the caller request in natural language."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "request": {"type": "string"},
+                },
+            },
+            "async": False,
+            "serverUrl": webhook_url,
+        },
+        {
+            "name": "book_meeting",
+            "description": (
+                "Book a meeting after one exact slot is confirmed. "
+                "Pass caller words in selection."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "datetime": {"type": "string"},
+                    "selection": {"type": "string"},
+                },
+            },
+            "async": False,
+            "serverUrl": webhook_url,
+        },
+        {
+            "name": "get_github_info",
+            "description": "Get details about one specific GitHub repository.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_name": {"type": "string"},
+                    "question": {"type": "string"},
+                },
+                "required": ["repo_name"],
+            },
+            "async": False,
+            "serverUrl": webhook_url,
+        },
+    ]
 
 
 def _parse_iso_datetime(value: str, timezone: str) -> Optional[datetime]:
@@ -697,7 +770,6 @@ def _format_slot_suggestions(
 
 
 def _format_availability_response(
-    calendar_service: CalendarService,
     slots: List[Dict[str, Any]],
     timezone: str,
     heading: str,
@@ -841,16 +913,29 @@ async def vapi_webhook(request: Request):
 # Tool-calls handler (modern Vapi format)
 # ---------------------------------------------------------------------------
 
+def _collect_tool_calls(message: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Collect tool calls from modern and compatibility Vapi payload shapes."""
+    tool_call_list = list(message.get("toolCallList", []) or [])
+    if tool_call_list:
+        return tool_call_list
+
+    for item in message.get("toolWithToolCallList", []) or []:
+        tool_call = item.get("toolCall", {})
+        if tool_call:
+            tool_call_list.append(tool_call)
+    return tool_call_list
+
+
+def _tool_result_cache_key(fn_name: str, arguments: Dict[str, Any]) -> str:
+    """Build a deterministic cache key for one tool payload."""
+    if not arguments:
+        return fn_name
+    args_key = json.dumps(arguments, sort_keys=True, default=str)
+    return f"{fn_name}::{args_key}"
+
 async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
     message = body.get("message", {})
-    tool_call_list = message.get("toolCallList", [])
-
-    # Also check toolWithToolCallList (some Vapi versions send it here)
-    if not tool_call_list:
-        for item in message.get("toolWithToolCallList", []):
-            tc = item.get("toolCall", {})
-            if tc:
-                tool_call_list.append(tc)
+    tool_call_list = _collect_tool_calls(message)
 
     logger.info("vapi_tool_calls", count=len(tool_call_list))
 
@@ -862,16 +947,10 @@ async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
     # we further deduplicate by name alone.
     results = []
     cached_results: Dict[str, str] = {}          # cache_key → result
-    for tc in tool_call_list:
+    for idx, tc in enumerate(tool_call_list):
         call_id, fn_name, arguments = _extract_tool_call_info(tc)
-
-        # For parameterless functions, dedup by name only.
-        # For others, include args in the key.
-        if not arguments or arguments == {}:
-            cache_key = fn_name
-        else:
-            args_key = json.dumps(arguments, sort_keys=True, default=str)
-            cache_key = f"{fn_name}::{args_key}"
+        response_call_id = call_id or str(tc.get("toolCallId") or tc.get("id") or f"tool-{idx}")
+        cache_key = _tool_result_cache_key(fn_name, arguments)
 
         if cache_key in cached_results:
             logger.info("vapi_tool_call_deduped", call_id=call_id, fn_name=fn_name)
@@ -886,7 +965,7 @@ async def _handle_tool_calls(request: Request, body: Dict[str, Any]):
             )
             cached_results[cache_key] = result_text
 
-        results.append({"toolCallId": call_id, "result": result_text})
+        results.append({"toolCallId": response_call_id, "result": result_text})
 
     return {"results": results}
 
@@ -936,7 +1015,7 @@ async def _dispatch(request: Request, fn_name: str, params: Dict[str, Any]) -> s
 async def _get_background_info(request: Request, parameters: Dict[str, Any]) -> str:
     """Answer background/role-fit questions fast — no Pinecone, direct LLM call."""
     settings = request.app.state.settings
-    question = parameters.get("question", "Tell me about Captain Sarthak Pandey")
+    question = str(parameters.get("question", "Tell me about Captain Sarthak Pandey"))
     return await _fast_voice_answer(settings, question)
 
 
@@ -974,7 +1053,6 @@ async def _get_availability(request: Request, parameters: Optional[Dict[str, Any
             )
         if request_text:
             return _format_availability_response(
-                calendar_service,
                 filtered_slots,
                 timezone,
                 heading=(
@@ -984,7 +1062,6 @@ async def _get_availability(request: Request, parameters: Optional[Dict[str, Any
             )
 
         return _format_availability_response(
-            calendar_service,
             filtered_slots,
             timezone,
             heading=(
@@ -1123,6 +1200,7 @@ def _handle_assistant_request(request: Request):
                 "Ask me about his skills, projects, why he is the right fit, "
                 "or schedule a meeting."
             ),
+            "functions": _assistant_functions(settings),
         }
     }
 

@@ -1,5 +1,6 @@
 """Chat endpoint for the web interface."""
 
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -14,12 +15,16 @@ from fastapi.responses import StreamingResponse
 from app.core.rag_engine import RAGEngine, RAGStreamResult
 from app.models.schemas import ChatRequest, ChatResponse, SourceDocument
 from app.services.calendar_service import CalendarService
+from app.services.github_service import GitHubService
+from app.services.persona_service import PersonaService
 
 logger = structlog.get_logger()
 router = APIRouter()
 
 DEFAULT_BOOKING_TIMEZONE = "Asia/Kolkata"
 EMAIL_PATTERN = re.compile(r"\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[A-Za-z]{2,}\b")
+LATEST_GITHUB_TIMEOUT_SECONDS = 7
+UTC_OFFSET = "+00:00"
 
 
 @dataclass
@@ -56,6 +61,20 @@ async def chat(request: Request, chat_request: ChatRequest):
     settings = request.app.state.settings
 
     try:
+        live_latest_message = await _maybe_live_latest_github_message(
+            settings=settings,
+            query=chat_request.message,
+        )
+        if live_latest_message:
+            return _build_chat_response(
+                message=live_latest_message,
+                source_documents=[],
+                conversation_id=chat_request.conversation_id,
+                booking_link=None,
+                available_slots=[],
+                timezone=None,
+            )
+
         prepared = await _prepare_chat_context(chat_request, settings)
         if prepared.early_response is not None:
             return prepared.early_response
@@ -102,6 +121,37 @@ async def chat_stream(request: Request, chat_request: ChatRequest):
     """Stream chat tokens as NDJSON for lower perceived latency in the UI."""
     rag_engine: RAGEngine = request.app.state.rag_engine
     settings = request.app.state.settings
+
+    live_latest_message = await _maybe_live_latest_github_message(
+        settings=settings,
+        query=chat_request.message,
+    )
+    if live_latest_message:
+        final_response = _build_chat_response(
+            message=live_latest_message,
+            source_documents=[],
+            conversation_id=chat_request.conversation_id,
+            booking_link=None,
+            available_slots=[],
+            timezone=None,
+        )
+
+        async def _immediate_done_stream() -> AsyncIterator[str]:
+            yield _ndjson_event(
+                {
+                    "type": "done",
+                    "response": final_response.model_dump(mode="json"),
+                }
+            )
+
+        return StreamingResponse(
+            _immediate_done_stream(),
+            media_type="application/x-ndjson",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     try:
         prepared = await _prepare_chat_context(chat_request, settings)
@@ -657,6 +707,92 @@ def _sanitize_github_project_answer(query: str, answer: str, source_documents: l
     return cleaned or answer
 
 
+def _is_latest_github_query(message: str) -> bool:
+    """Detect recency-focused GitHub requests that should use live GitHub data."""
+    q = (message or "").lower()
+    if not _is_github_project_query(q):
+        return False
+    return any(
+        token in q
+        for token in ("latest", "recent", "newest", "last updated", "most recent")
+    )
+
+
+def _as_string_set(raw_value) -> Optional[set[str]]:
+    """Normalize a YAML list into a stripped string set."""
+    if not isinstance(raw_value, list):
+        return None
+    values = {str(item).strip() for item in raw_value if str(item).strip()}
+    return values or None
+
+
+def _parse_iso_sort_value(raw_value: str) -> datetime:
+    """Parse ISO timestamp for descending recency sort."""
+    try:
+        return datetime.fromisoformat((raw_value or "").replace("Z", UTC_OFFSET))
+    except Exception:
+        return datetime.min
+
+
+def _format_repo_pushed_time(raw_value: str) -> str:
+    """Render ISO timestamp into stable UTC text for UI responses."""
+    try:
+        parsed = datetime.fromisoformat((raw_value or "").replace("Z", UTC_OFFSET))
+        return parsed.strftime("%Y-%m-%d %I:%M %p UTC")
+    except Exception:
+        return raw_value or "unknown"
+
+
+def _build_live_latest_github_message(settings, query: str) -> Optional[str]:
+    """Fetch latest repos directly from GitHub and build a deterministic response."""
+    persona = PersonaService()
+    config = persona.config or {}
+    showcase_repos = _as_string_set(config.get("github_showcase_repos") or [])
+    exclude_repos = _as_string_set(config.get("github_exclude_repos") or [])
+
+    github = GitHubService(settings)
+    repos = github.fetch_all_repos(
+        showcase_repos=showcase_repos,
+        exclude_repos=exclude_repos,
+    )
+    if not repos:
+        return None
+
+    sorted_repos = sorted(
+        repos,
+        key=lambda repo: _parse_iso_sort_value(getattr(repo, "pushed_at", "")),
+        reverse=True,
+    )
+    top = sorted_repos[:5]
+
+    lines = ["Here are the latest GitHub projects by last code push:"]
+    for repo in top:
+        pushed_at = _format_repo_pushed_time(getattr(repo, "pushed_at", ""))
+        description = (getattr(repo, "description", "") or "No description").strip()
+        lines.append(f"- {repo.name} (last push: {pushed_at}): {description}")
+
+    lines.append("If you want, I can explain architecture or tradeoffs for any one repository.")
+    return "\n".join(lines)
+
+
+async def _maybe_live_latest_github_message(settings, query: str) -> Optional[str]:
+    """Return a live latest-repos message for recency GitHub queries."""
+    if not _is_latest_github_query(query):
+        return None
+
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_build_live_latest_github_message, settings, query),
+            timeout=LATEST_GITHUB_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("live_latest_github_timeout", query=query[:100])
+        return None
+    except Exception as exc:
+        logger.warning("live_latest_github_failed", query=query[:100], error=str(exc))
+        return None
+
+
 def _resolve_timezone(timezone: Optional[str], fallback: str) -> str:
     """Validate requested timezone, else fallback."""
     candidate = (timezone or "").strip() or (fallback or DEFAULT_BOOKING_TIMEZONE)
@@ -672,7 +808,7 @@ def _parse_local_datetime(iso_value: str, timezone: str) -> Optional[datetime]:
     if not iso_value:
         return None
     try:
-        dt = datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(iso_value.replace("Z", UTC_OFFSET))
         return dt.astimezone(ZoneInfo(timezone))
     except Exception:
         return None

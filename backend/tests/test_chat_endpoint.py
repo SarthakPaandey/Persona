@@ -273,3 +273,43 @@ def test_chat_stream_returns_token_events(client_with_mocks, mock_rag_engine):
     assert events[0].get("type") == "token"
     assert events[-1].get("type") == "done"
     assert "message" in events[-1].get("response", {})
+
+
+def test_chat_latest_github_projects_uses_live_override(client_with_mocks, mock_rag_engine):
+    with patch(
+        "app.api.routes.chat._maybe_live_latest_github_message",
+        new=AsyncMock(return_value="Live latest GitHub repos"),
+    ) as mock_live:
+        res = client_with_mocks.post(
+            "/api/chat",
+            json={"message": "Show me latest github projects", "conversation_history": []},
+        )
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["message"] == "Live latest GitHub repos"
+    assert data.get("booking_link") is None
+    mock_live.assert_awaited_once()
+    mock_rag_engine.query.assert_not_awaited()
+
+
+def test_chat_stream_latest_github_projects_returns_done_event(
+    client_with_mocks,
+    mock_rag_engine,
+):
+    with patch(
+        "app.api.routes.chat._maybe_live_latest_github_message",
+        new=AsyncMock(return_value="Live latest GitHub repos"),
+    ) as mock_live:
+        res = client_with_mocks.post(
+            "/api/chat/stream",
+            json={"message": "Show me latest github projects", "conversation_history": []},
+        )
+
+    assert res.status_code == 200
+    events = [json.loads(line) for line in res.text.splitlines() if line.strip()]
+    assert len(events) == 1
+    assert events[0].get("type") == "done"
+    assert events[0].get("response", {}).get("message") == "Live latest GitHub repos"
+    mock_live.assert_awaited_once()
+    mock_rag_engine.stream_query.assert_not_called()
