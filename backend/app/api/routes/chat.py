@@ -16,7 +16,6 @@ from app.core.rag_engine import RAGEngine, RAGStreamResult
 from app.models.schemas import ChatRequest, ChatResponse, SourceDocument
 from app.services.calendar_service import CalendarService
 from app.services.github_service import GitHubService
-from app.services.persona_service import PersonaService
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -718,14 +717,6 @@ def _is_latest_github_query(message: str) -> bool:
     )
 
 
-def _as_string_set(raw_value) -> Optional[set[str]]:
-    """Normalize a YAML list into a stripped string set."""
-    if not isinstance(raw_value, list):
-        return None
-    values = {str(item).strip() for item in raw_value if str(item).strip()}
-    return values or None
-
-
 def _parse_iso_sort_value(raw_value: str) -> datetime:
     """Parse ISO timestamp for descending recency sort."""
     try:
@@ -745,14 +736,9 @@ def _format_repo_pushed_time(raw_value: str) -> str:
 
 def _build_live_latest_github_message(settings, query: str) -> Optional[str]:
     """Fetch latest repos directly from GitHub and build a deterministic response."""
-    persona = PersonaService()
-    config = persona.config or {}
-    exclude_repos = _as_string_set(config.get("github_exclude_repos") or [])
-
     github = GitHubService(settings)
     repos = github.fetch_latest_public_repos(
         limit=4,
-        exclude_repos=exclude_repos,
     )
     if not repos:
         return None
@@ -766,9 +752,14 @@ def _build_live_latest_github_message(settings, query: str) -> Optional[str]:
 
     lines = ["Here are his 4 latest updated public GitHub repositories:"]
     for repo in top:
-        pushed_at = _format_repo_pushed_time(getattr(repo, "pushed_at", ""))
+        updated_at = _format_repo_pushed_time(
+            getattr(repo, "last_updated", "") or getattr(repo, "pushed_at", "")
+        )
+        language = getattr(repo, "language", "Unknown")
         description = (getattr(repo, "description", "") or "No description").strip()
-        lines.append(f"- {repo.name} (last push: {pushed_at}): {description}")
+        lines.append(
+            f"- {repo.name} (last updated: {updated_at}, language: {language}): {description}"
+        )
 
     lines.append("If you want, I can explain architecture or tradeoffs for any one repository.")
     return "\n".join(lines)

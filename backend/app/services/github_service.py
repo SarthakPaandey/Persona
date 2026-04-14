@@ -1,5 +1,6 @@
 """GitHub repository fetching and parsing service."""
 
+import re
 import structlog
 from dataclasses import dataclass
 from typing import List, Optional, Set
@@ -103,18 +104,19 @@ class GitHubService:
         exclude = exclude_repos or set()
         max_items = max(1, int(limit or 1))
 
-        for repo in user.get_repos(type="public", sort="pushed", direction="desc"):
+        for repo in user.get_repos(type="public", sort="updated", direction="desc"):
             if repo.fork:
                 continue
             if repo.name in exclude:
                 logger.info("Skipped excluded repo in latest list", name=repo.name)
                 continue
 
+            description = self._derive_repo_description(repo)
             pushed_at = repo.pushed_at.isoformat() if repo.pushed_at else repo.updated_at.isoformat()
             repos.append(
                 RepoInfo(
                     name=repo.name,
-                    description=repo.description or "No description",
+                    description=description,
                     url=repo.html_url,
                     language=repo.language or "Unknown",
                     stars=repo.stargazers_count,
@@ -132,6 +134,44 @@ class GitHubService:
 
         logger.info("Latest public repos fetched", count=len(repos), limit=max_items)
         return repos
+
+    def _derive_repo_description(self, repo) -> str:
+        """Return best-effort concise description for a repository."""
+        explicit = (repo.description or "").strip()
+        if explicit:
+            return explicit
+
+        try:
+            readme = repo.get_readme()
+            text = readme.decoded_content.decode("utf-8", errors="ignore")
+            summary = self._extract_readme_summary(text)
+            if summary:
+                return summary
+        except Exception:
+            pass
+
+        language = repo.language or "Unknown"
+        return f"Public {language} repository. GitHub description is not set."
+
+    @staticmethod
+    def _extract_readme_summary(readme_text: str) -> str:
+        """Extract first meaningful sentence-like line from README content."""
+        for raw_line in (readme_text or "").splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.startswith(("#", "![", "[!", "```", "---", "<", "- ", "* ")):
+                continue
+            if len(line) < 24:
+                continue
+
+            cleaned = re.sub(r"`([^`]*)`", r"\1", line)
+            cleaned = re.sub(r"\[(.*?)\]\([^\)]*\)", r"\1", cleaned)
+            cleaned = " ".join(cleaned.split())
+            if cleaned:
+                return cleaned[:220]
+
+        return ""
 
     def _parse_repo(self, repo) -> RepoInfo:
         """Parse a GitHub repo into structured info."""
@@ -224,7 +264,7 @@ class GitHubService:
             if tech.lower() in readme_lower:
                 detected.add(tech)
 
-        return sorted(list(detected))
+        return sorted(detected)
 
     def format_repo_for_embedding(self, repo: RepoInfo) -> str:
         """Format a repo into a text document for embedding."""
