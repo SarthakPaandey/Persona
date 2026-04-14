@@ -36,35 +36,13 @@ TOOL_DEFINITIONS = [
     {
         "type": "function",
         "function": {
-            "name": "get_background_info",
-            "description": (
-                "Retrieve a specific background detail that is not already "
-                "covered by the built-in profile brief, such as an exact "
-                "resume date or a precise project detail."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "question": {
-                        "type": "string",
-                        "description": "The caller's question, verbatim or paraphrased.",
-                    }
-                },
-                "required": ["question"],
-            },
-        },
-        "server": {"url": WEBHOOK_URL},
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "get_availability",
             "description": (
                 "Fetch real calendar availability for the next 7 days. "
                 "Use this only when the caller asks about scheduling, "
-                "availability, or wants to book. Pass the caller's scheduling "
-                "request verbatim in request so the backend can filter the "
-                "options."
+                "availability, or wants to book and has finished the day or "
+                "time request. Pass the caller's scheduling request verbatim "
+                "in request so the backend can filter the options."
             ),
             "parameters": {
                 "type": "object",
@@ -88,8 +66,9 @@ TOOL_DEFINITIONS = [
             "description": (
                 "Book a meeting on the calendar. Only call this after the caller "
                 "confirms one exact slot from get_availability. Always pass the "
-                "caller's exact confirmation words in selection. Do not invent a "
-                "new date if the caller only repeats a time range."
+                "caller's exact confirmation words in selection. Do not book "
+                "from vague confirmations and do not invent a new date if the "
+                "caller only repeats a time range."
             ),
             "parameters": {
                 "type": "object",
@@ -109,32 +88,6 @@ TOOL_DEFINITIONS = [
                         ),
                     },
                 },
-            },
-        },
-        "server": {"url": WEBHOOK_URL},
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_github_info",
-            "description": (
-                "Get deep technical details about one specific named GitHub "
-                "repository — tech stack, purpose, architecture decisions, "
-                "and tradeoffs."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "repo_name": {
-                        "type": "string",
-                        "description": "The repository name as it appears on GitHub.",
-                    },
-                    "question": {
-                        "type": "string",
-                        "description": "The specific question about the repo.",
-                    },
-                },
-                "required": ["repo_name"],
             },
         },
         "server": {"url": WEBHOOK_URL},
@@ -246,33 +199,26 @@ WHY HE IS THE RIGHT FIT:
         "Keep responses to 2-3 sentences for voice. Be warm, specific, and confident.\n\n"
         + profile_context
         + "\n\nCRITICAL RULES — READ THESE CAREFULLY:\n\n"
-        "RULE 1: ANSWER DIRECTLY — NO TOOL CALLS for common questions.\n"
-        "You MUST answer these questions IMMEDIATELY from the profile above WITHOUT calling any tool:\n"
-        "  - 'Why is he the right fit?' / 'Why should we hire him?'\n"
-        "  - 'What are his skills?' / 'What technologies does he know?'\n"
-        "  - 'Tell me about his projects' / 'What has he built?'\n"
-        "  - 'What is his experience?' / 'What is his background?'\n"
-        "  - 'What is his education?'\n"
-        "  - Any question answerable from the PROFILE BRIEF above\n"
-        "The profile above contains EVERYTHING you need for these. DO NOT call get_background_info.\n\n"
-        "RULE 2: TOOL RESULTS ARE YOUR ANSWER.\n"
-        "If you call a tool and receive a result, you MUST read the result and relay it to the caller. "
-        "NEVER ignore a tool result. NEVER repeat your introduction after receiving a tool result. "
-        "The tool result IS your answer — paraphrase it in 2-3 sentences.\n\n"
-        "RULE 3: NO FILLER WHILE TOOLS RUN.\n"
-        "While waiting for a tool result, say at most 'Let me check on that.' "
+        "RULE 1: For normal conversation about skills, projects, experience, education, or role fit, answer directly from the profile above. "
+        "Do NOT call any tool for normal conversation.\n\n"
+        "RULE 2: The ONLY tools you may use are get_availability and book_meeting.\n"
+        "Never call get_background_info or get_github_info during a live call.\n\n"
+        "RULE 3: Wait until the caller finishes the scheduling request before calling a tool.\n"
+        "Do NOT call get_availability or book_meeting on partial phrases like 'is there any' or 'for today'.\n\n"
+        "RULE 4: Use get_availability once for each completed scheduling question.\n"
+        "If the caller changes the day or time preference, call get_availability again for the new request and then read the returned slots naturally.\n\n"
+        "RULE 5: Use book_meeting ONLY after the caller picks one exact offered slot.\n"
+        "A vague reply like 'yes', 'that's fine', 'today', 'tomorrow', or 'that works' is NOT enough when multiple slots are available.\n\n"
+        "RULE 6: TOOL RESULTS ARE YOUR ANSWER.\n"
+        "If a tool returns a result, summarize that result directly in 1-2 short sentences. "
+        "NEVER ignore the tool result. NEVER repeat your introduction after a tool result. "
+        "Repeat the exact day, date, year, and time from the tool result. Do not invent or alter them.\n\n"
+        "RULE 7: While a tool runs, say at most 'Let me check on that.' "
         "Do NOT say your introduction. Do NOT say 'What can I help you with?'\n\n"
-        "RULE 4: When to use tools (RARE):\n"
-        "  - get_background_info: ONLY for very specific detailed questions NOT in the profile (exact resume dates, specific bullet points)\n"
-        "  - get_github_info: ONLY for a technical deep-dive on ONE specific repo\n"
-        "  - get_availability: ONLY for scheduling requests — call it EXACTLY ONCE\n"
-        "  - book_meeting: ONLY after caller confirms one exact slot\n\n"
-        "RULE 5: NEVER call the same tool more than once per turn.\n\n"
-        "RULE 6: For booking — call get_availability once, suggest matching slots, ask caller to confirm one.\n\n"
-        "RULE 7: Do not ask for caller contact details.\n\n"
-        "RULE 8: Use 'he'/'his' for the Captain, never 'they'/'their'.\n\n"
-        "RULE 9: Handle follow-ups naturally. Never repeat your intro in normal replies.\n\n"
-        "RULE 10: Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.\n"
+        "RULE 8: Do not ask for caller contact details.\n\n"
+        "RULE 9: Use 'he'/'his' for the Captain, never 'they'/'their'.\n\n"
+        "RULE 10: Handle follow-ups naturally. Never repeat your intro in normal replies.\n\n"
+        "RULE 11: Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.\n"
     )
 
     return {

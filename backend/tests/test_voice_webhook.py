@@ -226,6 +226,123 @@ def test_voice_booking_uses_recent_filtered_slots_for_time_only_confirmation(voi
     assert create_call.kwargs["start_time"] == "2026-04-15T17:30:00+05:30"
 
 
+def test_voice_booking_rejects_broad_confirmation_when_multiple_slots_exist(voice_client):
+    with patch("app.api.routes.voice.CalendarService") as MockCal:
+        instance = MockCal.return_value
+        instance.default_timezone = "Asia/Kolkata"
+        instance.get_available_slots = AsyncMock(
+            return_value=[
+                {
+                    "start": "2026-04-14T17:00:00+05:30",
+                    "end": "2026-04-14T17:30:00+05:30",
+                    "formatted": "Tue Apr 14 · 05:00 PM",
+                },
+                {
+                    "start": "2026-04-14T18:00:00+05:30",
+                    "end": "2026-04-14T18:30:00+05:30",
+                    "formatted": "Tue Apr 14 · 06:00 PM",
+                },
+                {
+                    "start": "2026-04-14T18:30:00+05:30",
+                    "end": "2026-04-14T19:00:00+05:30",
+                    "formatted": "Tue Apr 14 · 06:30 PM",
+                },
+            ]
+        )
+        instance.create_booking = AsyncMock(return_value={"data": {"id": "booking-3"}})
+
+        availability = voice_client.post(
+            "/api/voice/vapi/webhook",
+            json=_get_availability_payload(
+                call_id="call-ambiguous",
+                tool_call_id="tool-ambiguous-avail",
+                request_text="today after 5 PM",
+            ),
+        )
+        assert availability.status_code == 200
+
+        booking = voice_client.post(
+            "/api/voice/vapi/webhook",
+            json={
+                "call": {"id": "call-ambiguous"},
+                "message": {
+                    "type": "tool-calls",
+                    "toolCallList": [
+                        {
+                            "id": "tool-ambiguous-book",
+                            "name": "book_meeting",
+                            "arguments": {
+                                "datetime": "2026-04-14T18:00:00+05:30",
+                                "selection": "Yeah, that's fine for me.",
+                            },
+                        }
+                    ],
+                },
+            },
+        )
+
+    assert booking.status_code == 200
+    result = booking.json()["results"][0]["result"]
+    assert "I still need one exact slot before I book it." in result
+    instance.create_booking.assert_not_awaited()
+
+
+def test_voice_booking_accepts_ordinal_slot_reference(voice_client):
+    with patch("app.api.routes.voice.CalendarService") as MockCal:
+        instance = MockCal.return_value
+        instance.default_timezone = "Asia/Kolkata"
+        instance.get_available_slots = AsyncMock(
+            return_value=[
+                {
+                    "start": "2026-04-14T17:00:00+05:30",
+                    "end": "2026-04-14T17:30:00+05:30",
+                    "formatted": "Tue Apr 14 · 05:00 PM",
+                },
+                {
+                    "start": "2026-04-14T18:00:00+05:30",
+                    "end": "2026-04-14T18:30:00+05:30",
+                    "formatted": "Tue Apr 14 · 06:00 PM",
+                },
+            ]
+        )
+        instance.create_booking = AsyncMock(return_value={"data": {"id": "booking-4"}})
+
+        availability = voice_client.post(
+            "/api/voice/vapi/webhook",
+            json=_get_availability_payload(
+                call_id="call-ordinal",
+                tool_call_id="tool-ordinal-avail",
+                request_text="today after 5 PM",
+            ),
+        )
+        assert availability.status_code == 200
+
+        booking = voice_client.post(
+            "/api/voice/vapi/webhook",
+            json={
+                "call": {"id": "call-ordinal"},
+                "message": {
+                    "type": "tool-calls",
+                    "toolCallList": [
+                        {
+                            "id": "tool-ordinal-book",
+                            "name": "book_meeting",
+                            "arguments": {
+                                "selection": "Book the second one.",
+                            },
+                        }
+                    ],
+                },
+            },
+        )
+
+    assert booking.status_code == 200
+    result = booking.json()["results"][0]["result"]
+    assert "Tue Apr 14 · 06:00 PM" in result
+    create_call = instance.create_booking.await_args
+    assert create_call.kwargs["start_time"] == "2026-04-14T18:00:00+05:30"
+
+
 def test_voice_assistant_request_includes_tool_functions(voice_client):
     response = voice_client.post(
         "/api/voice/vapi/webhook",
@@ -240,13 +357,13 @@ def test_voice_assistant_request_includes_tool_functions(voice_client):
 
     assert model.get("provider") == "groq"
     assert model.get("model") == "llama-3.1-8b-instant"
-    assert "ANSWER DIRECTLY — NO TOOL CALLS" in model.get("systemPrompt", "")
+    assert "The ONLY tools you may use are get_availability and book_meeting." in model.get("systemPrompt", "")
     assert "TOOL RESULTS ARE YOUR ANSWER" in model.get("systemPrompt", "")
     assert "get_availability" in model.get("systemPrompt", "")
     assert assistant.get("firstMessage", "").startswith("I am RORI")
 
     fn_names = {item.get("name") for item in functions}
-    assert {"get_background_info", "get_availability", "book_meeting", "get_github_info"}.issubset(fn_names)
+    assert fn_names == {"get_availability", "book_meeting"}
     assert all(item.get("serverUrl", "").endswith("/api/voice/vapi/webhook") for item in functions)
 
 

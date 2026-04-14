@@ -1,18 +1,7 @@
 [
   {
-    "name": "get_background_info",
-    "description": "Retrieve a specific background detail that is not already covered by the built-in profile brief, such as an exact resume date or a precise project detail.",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "question": { "type": "string" }
-      },
-      "required": ["question"]
-    }
-  },
-  {
     "name": "get_availability",
-    "description": "Fetch real calendar availability for the next 7 days. Use only for explicit scheduling or booking requests, and pass the caller's scheduling request so the backend can filter the options.",
+    "description": "Fetch real calendar availability for the next 7 days. Use only for explicit scheduling or booking requests after the caller finishes the day or time preference, and pass the caller's scheduling request so the backend can filter the options.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -22,25 +11,13 @@
   },
   {
     "name": "book_meeting",
-    "description": "Book a meeting only after confirming one exact slot from the available options. Pass the caller's exact confirmation words in selection and do not invent a new date.",
+    "description": "Book a meeting only after confirming one exact slot from the available options. Pass the caller's exact confirmation words in selection, do not book from vague confirmations, and do not invent a new date.",
     "parameters": {
       "type": "object",
       "properties": {
         "datetime": { "type": "string" },
         "selection": { "type": "string" }
       }
-    }
-  },
-  {
-    "name": "get_github_info",
-    "description": "Get deep technical details about one specific named GitHub repository.",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "repo_name": { "type": "string" },
-        "question": { "type": "string" }
-      },
-      "required": ["repo_name"]
     }
   }
 ]

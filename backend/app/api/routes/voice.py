@@ -172,43 +172,36 @@ Keep responses to 2-3 sentences for voice. Be warm, specific, and confident.
 
 CRITICAL RULES — READ THESE CAREFULLY:
 
-RULE 1: ANSWER DIRECTLY — NO TOOL CALLS for common questions.
-You MUST answer these questions IMMEDIATELY from the profile above WITHOUT calling any tool:
-  - "Why is he the right fit?" / "Why should we hire him?"
-  - "What are his skills?" / "What technologies does he know?"
-  - "Tell me about his projects" / "What has he built?"
-  - "What is his experience?" / "What is his background?"
-  - "What is his education?"
-  - Any simple question answerable from the PROFILE BRIEF above
-The profile above contains everything you need for these. DO NOT call get_background_info.
+RULE 1: For normal conversation about skills, projects, experience, education, or role fit, answer directly from the profile above.
+Do NOT call any tool for normal conversation.
 
-RULE 2: TOOL RESULTS ARE YOUR ANSWER.
-If you call a tool and receive a result, you MUST read the result and relay it to the caller.
-NEVER ignore a tool result. NEVER repeat your introduction after receiving a tool result.
-The tool result IS your answer — paraphrase it in 2-3 sentences.
+RULE 2: The ONLY tools you may use are get_availability and book_meeting.
+Never call get_background_info or get_github_info during a live call.
 
-RULE 3: NO FILLER WHILE TOOLS RUN.
-While waiting for a tool result, say at most "Let me check on that."
+RULE 3: Wait until the caller finishes the scheduling request before calling a tool.
+Do NOT call get_availability or book_meeting on partial phrases like "is there any" or "for today".
+
+RULE 4: Use get_availability once for each completed scheduling question.
+If the caller changes the day or time preference, call get_availability again for the new request and then read the returned slots naturally.
+
+RULE 5: Use book_meeting ONLY after the caller picks one exact offered slot.
+A vague reply like "yes", "that's fine", "today", "tomorrow", or "that works" is NOT enough when multiple slots are available.
+
+RULE 6: TOOL RESULTS ARE YOUR ANSWER.
+If a tool returns a result, summarize that result directly in 1-2 short sentences.
+NEVER ignore the tool result. NEVER repeat your introduction after a tool result.
+Repeat the exact day, date, year, and time from the tool result. Do not invent or alter them.
+
+RULE 7: While a tool runs, say at most "Let me check on that."
 Do NOT say your introduction. Do NOT ask an unrelated question.
 
-RULE 4: When to use tools.
-  - get_background_info: ONLY for specific follow-up questions NOT covered by the profile brief, such as exact resume dates or a precise bullet point
-  - get_github_info: ONLY for a technical deep-dive on ONE specific named repository
-  - get_availability: ONLY for scheduling or booking requests
-  - book_meeting: ONLY after the caller confirms one exact slot from the available options
+RULE 8: Do not ask for caller contact details.
 
-RULE 5: For booking, call get_availability once, suggest matching slots, and ask the caller to confirm one exact slot.
+RULE 9: Use "he" / "his" for Captain {persona_name}, never "they" / "their".
 
-RULE 6: When the caller confirms a slot, call book_meeting using the caller's exact words in selection.
-Do not invent a new date if the caller only repeats a time range.
+RULE 10: Handle follow-ups naturally. Never repeat your intro in normal replies.
 
-RULE 7: Do not ask for caller contact details.
-
-RULE 8: Use "he" / "his" for Captain {persona_name}, never "they" / "their".
-
-RULE 9: Handle follow-ups naturally. Never repeat your intro in normal replies.
-
-RULE 10: Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.
+RULE 11: Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.
 """
 
 
@@ -492,32 +485,16 @@ def _safe_timezone_name(candidate: str) -> str:
 
 
 def _assistant_functions(settings) -> List[Dict[str, Any]]:
-    """Return explicit function config so assistant-request always preserves tools."""
+    """Return only the scheduling tools exposed to the live voice assistant."""
     webhook_url = f"{settings.backend_url.rstrip('/')}/api/voice/vapi/webhook"
     return [
-        {
-            "name": "get_background_info",
-            "description": (
-                "Retrieve a specific background detail that is not already covered "
-                "by the built-in profile brief, such as an exact resume date or "
-                "a precise project detail."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "question": {"type": "string"},
-                },
-                "required": ["question"],
-            },
-            "async": False,
-            "serverUrl": webhook_url,
-        },
         {
             "name": "get_availability",
             "description": (
                 "Fetch real calendar availability for the next 7 days. "
-                "Use only for explicit scheduling or booking requests, and pass "
-                "the caller request in natural language."
+                "Use only for explicit scheduling or booking requests after the "
+                "caller finishes the day or time preference. Pass the caller "
+                "request in natural language."
             ),
             "parameters": {
                 "type": "object",
@@ -532,7 +509,8 @@ def _assistant_functions(settings) -> List[Dict[str, Any]]:
             "name": "book_meeting",
             "description": (
                 "Book a meeting only after one exact slot is confirmed from the "
-                "available options. Pass the caller words in selection."
+                "available options. Pass the caller words in selection and do not "
+                "book from vague confirmations."
             ),
             "parameters": {
                 "type": "object",
@@ -540,23 +518,6 @@ def _assistant_functions(settings) -> List[Dict[str, Any]]:
                     "datetime": {"type": "string"},
                     "selection": {"type": "string"},
                 },
-            },
-            "async": False,
-            "serverUrl": webhook_url,
-        },
-        {
-            "name": "get_github_info",
-            "description": (
-                "Get deep technical details about one specific named GitHub "
-                "repository."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "repo_name": {"type": "string"},
-                    "question": {"type": "string"},
-                },
-                "required": ["repo_name"],
             },
             "async": False,
             "serverUrl": webhook_url,
@@ -692,6 +653,72 @@ def _extract_exact_time(text: str) -> Optional[time]:
     if not match:
         return None
     return _parse_clock_time(match.group(1), match.group(2) or "", match.group(3))
+
+
+def _extract_slot_reference_index(text: str) -> Optional[int]:
+    """Parse ordinal slot references like 'the second one'."""
+    lowered = (text or "").lower()
+    references = [
+        (r"\bfirst\b|\b1st\b", 0),
+        (r"\bsecond\b|\b2nd\b", 1),
+        (r"\bthird\b|\b3rd\b", 2),
+        (r"\bfourth\b|\b4th\b", 3),
+        (r"\blast\b", -1),
+    ]
+    for pattern, index in references:
+        if re.search(pattern, lowered):
+            return index
+    return None
+
+
+def _selection_mentions_exact_slot(text: str, timezone: str) -> bool:
+    """Return True when selection text names a specific slot by time."""
+    lowered = (text or "").lower()
+    if _parse_iso_datetime(text, timezone=timezone) is not None:
+        return True
+    start_time, _end_time = _extract_time_range(lowered)
+    if start_time is not None:
+        return True
+    return _extract_exact_time(lowered) is not None
+
+
+def _looks_like_booking_confirmation(text: str) -> bool:
+    """Return True for broad booking confirmations without slot precision."""
+    lowered = re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())
+    phrases = (
+        "book it",
+        "book that",
+        "schedule it",
+        "lock it in",
+        "lock that in",
+        "go ahead",
+        "works for me",
+        "that works",
+        "sounds good",
+        "fine for me",
+        "yes",
+        "yeah",
+        "sure",
+        "okay",
+        "ok",
+        "perfect",
+        "confirm",
+        "confirmed",
+    )
+    return any(phrase in lowered for phrase in phrases)
+
+
+def _slot_from_reference_index(
+    slots: List[Dict[str, Any]],
+    index: int,
+) -> Optional[Dict[str, Any]]:
+    """Return a slot from an ordinal reference if it exists."""
+    if not slots:
+        return None
+    resolved_index = len(slots) - 1 if index < 0 else index
+    if resolved_index < 0 or resolved_index >= len(slots):
+        return None
+    return slots[resolved_index]
 
 
 def _slot_datetime(slot: Dict[str, Any], timezone: str) -> Optional[datetime]:
@@ -1187,7 +1214,22 @@ async def _book_meeting(request: Request, parameters: Dict[str, Any]) -> str:
         return "I need an exact date and time to book. Could you share that slot?"
 
     selected_slot: Optional[Dict[str, Any]] = None
-    if selection_text:
+    slot_index = _extract_slot_reference_index(selection_text)
+    selection_has_exact_slot = _selection_mentions_exact_slot(selection_text, timezone)
+    selection_is_broad_confirmation = _looks_like_booking_confirmation(selection_text)
+
+    if available_slots and len(available_slots) > 1 and not selection_has_exact_slot and slot_index is None:
+        if selection_text or requested_time:
+            suggestions = _format_slot_suggestions(calendar_service, available_slots, timezone)
+            return (
+                "I still need one exact slot before I book it. "
+                f"Please choose one of these: {suggestions}."
+            )
+
+    if slot_index is not None:
+        selected_slot = _slot_from_reference_index(available_slots, slot_index)
+
+    if selected_slot is None and selection_has_exact_slot:
         selected_slot = _select_best_slot(
             requested=selection_text,
             slots=available_slots,
@@ -1200,6 +1242,13 @@ async def _book_meeting(request: Request, parameters: Dict[str, Any]) -> str:
             slots=available_slots,
             timezone=timezone,
         )
+
+    if (
+        selected_slot is None
+        and len(available_slots) == 1
+        and selection_is_broad_confirmation
+    ):
+        selected_slot = available_slots[0]
 
     if selected_slot is None and available_slots:
         suggestions = _format_slot_suggestions(calendar_service, available_slots, timezone)
