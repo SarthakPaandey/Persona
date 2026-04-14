@@ -747,12 +747,11 @@ def _build_live_latest_github_message(settings, query: str) -> Optional[str]:
     """Fetch latest repos directly from GitHub and build a deterministic response."""
     persona = PersonaService()
     config = persona.config or {}
-    showcase_repos = _as_string_set(config.get("github_showcase_repos") or [])
     exclude_repos = _as_string_set(config.get("github_exclude_repos") or [])
 
     github = GitHubService(settings)
-    repos = github.fetch_all_repos(
-        showcase_repos=showcase_repos,
+    repos = github.fetch_latest_public_repos(
+        limit=4,
         exclude_repos=exclude_repos,
     )
     if not repos:
@@ -763,9 +762,9 @@ def _build_live_latest_github_message(settings, query: str) -> Optional[str]:
         key=lambda repo: _parse_iso_sort_value(getattr(repo, "pushed_at", "")),
         reverse=True,
     )
-    top = sorted_repos[:5]
+    top = sorted_repos[:4]
 
-    lines = ["Here are the latest GitHub projects by last code push:"]
+    lines = ["Here are his 4 latest updated public GitHub repositories:"]
     for repo in top:
         pushed_at = _format_repo_pushed_time(getattr(repo, "pushed_at", ""))
         description = (getattr(repo, "description", "") or "No description").strip()

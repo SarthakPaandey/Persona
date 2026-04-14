@@ -88,6 +88,51 @@ class GitHubService:
         logger.info("Total repos fetched", count=len(repos))
         return repos
 
+    def fetch_latest_public_repos(
+        self,
+        limit: int = 4,
+        exclude_repos: Optional[Set[str]] = None,
+    ) -> List[RepoInfo]:
+        """Fetch only the latest updated public repos with lightweight metadata.
+
+        This path is optimized for chat queries like "latest GitHub projects" and
+        intentionally avoids heavy README/language expansion on every repository.
+        """
+        user = self.github.get_user(self.username)
+        repos: List[RepoInfo] = []
+        exclude = exclude_repos or set()
+        max_items = max(1, int(limit or 1))
+
+        for repo in user.get_repos(type="public", sort="pushed", direction="desc"):
+            if repo.fork:
+                continue
+            if repo.name in exclude:
+                logger.info("Skipped excluded repo in latest list", name=repo.name)
+                continue
+
+            pushed_at = repo.pushed_at.isoformat() if repo.pushed_at else repo.updated_at.isoformat()
+            repos.append(
+                RepoInfo(
+                    name=repo.name,
+                    description=repo.description or "No description",
+                    url=repo.html_url,
+                    language=repo.language or "Unknown",
+                    stars=repo.stargazers_count,
+                    topics=[],
+                    readme_content="",
+                    tech_stack=[repo.language] if repo.language else [],
+                    last_updated=repo.updated_at.isoformat(),
+                    pushed_at=pushed_at,
+                    is_fork=repo.fork,
+                )
+            )
+
+            if len(repos) >= max_items:
+                break
+
+        logger.info("Latest public repos fetched", count=len(repos), limit=max_items)
+        return repos
+
     def _parse_repo(self, repo) -> RepoInfo:
         """Parse a GitHub repo into structured info."""
         readme_content = ""

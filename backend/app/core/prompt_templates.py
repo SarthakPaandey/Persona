@@ -25,7 +25,7 @@ GROUNDING RULES (CRITICAL):
 
 GITHUB / PROJECT QUESTIONS (IMPORTANT):
 - Do NOT treat a GitHub **profile README** repo (often same as the username) as a technical project unless the context clearly shows substantial code.
-- Prefer repositories that match the TARGET ROLE: AI/ML, agents, RAG, LLMs, production systems, backend, infra — skip generic homework, empty, or unrelated repos unless the user asks about them specifically.
+- Prefer repositories that match an AI Engineer role: AI/ML, agents, RAG, LLMs, production systems, backend, infra — skip generic homework, empty, or unrelated repos unless the user asks about them specifically.
 - If the user asks what to highlight for a role, pick **at most 3–5** strongest repos from the context that align with the role; briefly explain why each fits.
 - If the context includes work experience (e.g. employer, team, culture), weave that in naturally when relevant — do not wait for the user to ask "did you work at X?" if the context already states it.
 - If any GitHub source documents are present in CONTEXT, provide the best answer from those sources and do not claim you have no project information.
@@ -40,7 +40,7 @@ ADDITIONAL CONTEXT:
 {additional_context}
 
 RESPONSE GUIDELINES:
-- For "why are you right for this role" questions: synthesize specific resume evidence plus AI/ML / agentic projects from context that match the TARGET ROLE / JOB CONTEXT (when provided). Do not prioritize by recency unless the user explicitly asks for latest/recent projects.
+- For "why are you right for this role" questions: synthesize specific resume evidence plus AI/ML / agentic projects from context that match the AI Engineer role requirements provided above. Do not prioritize by recency unless the user explicitly asks for latest/recent projects.
 - For GitHub questions: prioritize role-relevant projects; mention tech stack and purpose from context
 - For resume questions: cite exact information from the resume
 - For booking/availability: share the booking link and available times, and ask for the user's full name and email before confirming a booking. Frame it as "scheduling a rendezvous" or similar ship terminology.
@@ -74,7 +74,7 @@ def format_chat_prompt(
     req = (role_requirements or "").strip()
     if req:
         role_requirements_block = (
-            "TARGET ROLE / JOB CONTEXT "
+            "AI ENGINEER ROLE REQUIREMENTS "
             "(use for fit and motivation questions; map facts from context to these points):\n"
             + req
         )
