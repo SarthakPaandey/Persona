@@ -1,7 +1,7 @@
 [
   {
     "name": "get_background_info",
-    "description": "Retrieve information about background, skills, experience, or GitHub projects.",
+    "description": "Retrieve a specific background detail that is not already covered by the built-in profile brief, such as an exact resume date or a precise project detail.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -12,7 +12,7 @@
   },
   {
     "name": "get_availability",
-    "description": "Fetch real calendar availability for the next 7 days and pass the caller's scheduling request so the backend can filter the options.",
+    "description": "Fetch real calendar availability for the next 7 days. Use only for explicit scheduling or booking requests, and pass the caller's scheduling request so the backend can filter the options.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -22,7 +22,7 @@
   },
   {
     "name": "book_meeting",
-    "description": "Book a meeting after confirming one exact slot. Pass the caller's exact confirmation words in selection and do not invent a new date.",
+    "description": "Book a meeting only after confirming one exact slot from the available options. Pass the caller's exact confirmation words in selection and do not invent a new date.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -33,7 +33,7 @@
   },
   {
     "name": "get_github_info",
-    "description": "Get details about a specific GitHub repository.",
+    "description": "Get deep technical details about one specific named GitHub repository.",
     "parameters": {
       "type": "object",
       "properties": {

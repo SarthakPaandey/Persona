@@ -38,10 +38,9 @@ TOOL_DEFINITIONS = [
         "function": {
             "name": "get_background_info",
             "description": (
-                "Retrieve information about background, skills, experience, "
-                "or specific GitHub projects. Use this whenever the caller asks "
-                "about skills, projects, experience, education, or "
-                "'why are you right for this role'."
+                "Retrieve a specific background detail that is not already "
+                "covered by the built-in profile brief, such as an exact "
+                "resume date or a precise project detail."
             ),
             "parameters": {
                 "type": "object",
@@ -62,9 +61,10 @@ TOOL_DEFINITIONS = [
             "name": "get_availability",
             "description": (
                 "Fetch real calendar availability for the next 7 days. "
-                "Use this when the caller asks about scheduling, availability, "
-                "or wants to book. Pass the caller's scheduling request verbatim "
-                "in request so the backend can filter the options."
+                "Use this only when the caller asks about scheduling, "
+                "availability, or wants to book. Pass the caller's scheduling "
+                "request verbatim in request so the backend can filter the "
+                "options."
             ),
             "parameters": {
                 "type": "object",
@@ -118,8 +118,9 @@ TOOL_DEFINITIONS = [
         "function": {
             "name": "get_github_info",
             "description": (
-                "Get detailed information about a specific GitHub repository — "
-                "tech stack, purpose, architecture decisions, and tradeoffs."
+                "Get deep technical details about one specific named GitHub "
+                "repository — tech stack, purpose, architecture decisions, "
+                "and tradeoffs."
             ),
             "parameters": {
                 "type": "object",

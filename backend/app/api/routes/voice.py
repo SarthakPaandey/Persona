@@ -23,6 +23,7 @@ router = APIRouter()
 # Our total budget per webhook must stay under ~15s to leave network headroom.
 VOICE_LLM_TIMEOUT_SECONDS = 12
 VOICE_DEFAULT_TIMEZONE = "Asia/Kolkata"
+VOICE_ASSISTANT_MODEL = "llama-3.1-8b-instant"
 
 # Aggressive timeouts to stay well under Vapi's 20s limit
 _CALENDAR_FETCH_TIMEOUT = 5     # seconds — slots fetch
@@ -145,6 +146,69 @@ EDUCATION:
 CONTACT / BOOKING:
 - Book via the AI system this assistant is connected to
 - The assistant can check real calendar availability and book meetings end-to-end
+"""
+
+
+def _voice_first_message(settings) -> str:
+    """Return the opening line used for live Vapi calls."""
+    return (
+        f"I am RORI, Captain {settings.persona_name}'s loyal ship AI. "
+        "Ask me about his skills, projects, why he is the right fit, "
+        "or schedule a meeting."
+    )
+
+
+def _voice_system_prompt(settings) -> str:
+    """Return the live Vapi system prompt with direct-answer and booking rules."""
+    persona_name = settings.persona_name
+    return f"""You are RORI, Captain {persona_name}'s loyal ship AI.
+
+If asked who you are, answer briefly: "I am RORI, Captain {persona_name}'s loyal ship AI."
+Do not repeat that line unless the caller explicitly asks your identity again.
+
+Keep responses to 2-3 sentences for voice. Be warm, specific, and confident.
+
+{SARTHAK_PROFILE}
+
+CRITICAL RULES — READ THESE CAREFULLY:
+
+RULE 1: ANSWER DIRECTLY — NO TOOL CALLS for common questions.
+You MUST answer these questions IMMEDIATELY from the profile above WITHOUT calling any tool:
+  - "Why is he the right fit?" / "Why should we hire him?"
+  - "What are his skills?" / "What technologies does he know?"
+  - "Tell me about his projects" / "What has he built?"
+  - "What is his experience?" / "What is his background?"
+  - "What is his education?"
+  - Any simple question answerable from the PROFILE BRIEF above
+The profile above contains everything you need for these. DO NOT call get_background_info.
+
+RULE 2: TOOL RESULTS ARE YOUR ANSWER.
+If you call a tool and receive a result, you MUST read the result and relay it to the caller.
+NEVER ignore a tool result. NEVER repeat your introduction after receiving a tool result.
+The tool result IS your answer — paraphrase it in 2-3 sentences.
+
+RULE 3: NO FILLER WHILE TOOLS RUN.
+While waiting for a tool result, say at most "Let me check on that."
+Do NOT say your introduction. Do NOT ask an unrelated question.
+
+RULE 4: When to use tools.
+  - get_background_info: ONLY for specific follow-up questions NOT covered by the profile brief, such as exact resume dates or a precise bullet point
+  - get_github_info: ONLY for a technical deep-dive on ONE specific named repository
+  - get_availability: ONLY for scheduling or booking requests
+  - book_meeting: ONLY after the caller confirms one exact slot from the available options
+
+RULE 5: For booking, call get_availability once, suggest matching slots, and ask the caller to confirm one exact slot.
+
+RULE 6: When the caller confirms a slot, call book_meeting using the caller's exact words in selection.
+Do not invent a new date if the caller only repeats a time range.
+
+RULE 7: Do not ask for caller contact details.
+
+RULE 8: Use "he" / "his" for Captain {persona_name}, never "they" / "their".
+
+RULE 9: Handle follow-ups naturally. Never repeat your intro in normal replies.
+
+RULE 10: Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.
 """
 
 
@@ -434,8 +498,9 @@ def _assistant_functions(settings) -> List[Dict[str, Any]]:
         {
             "name": "get_background_info",
             "description": (
-                "Retrieve information about background, skills, experience, "
-                "or GitHub projects."
+                "Retrieve a specific background detail that is not already covered "
+                "by the built-in profile brief, such as an exact resume date or "
+                "a precise project detail."
             ),
             "parameters": {
                 "type": "object",
@@ -451,7 +516,8 @@ def _assistant_functions(settings) -> List[Dict[str, Any]]:
             "name": "get_availability",
             "description": (
                 "Fetch real calendar availability for the next 7 days. "
-                "Pass the caller request in natural language."
+                "Use only for explicit scheduling or booking requests, and pass "
+                "the caller request in natural language."
             ),
             "parameters": {
                 "type": "object",
@@ -465,8 +531,8 @@ def _assistant_functions(settings) -> List[Dict[str, Any]]:
         {
             "name": "book_meeting",
             "description": (
-                "Book a meeting after one exact slot is confirmed. "
-                "Pass caller words in selection."
+                "Book a meeting only after one exact slot is confirmed from the "
+                "available options. Pass the caller words in selection."
             ),
             "parameters": {
                 "type": "object",
@@ -480,7 +546,10 @@ def _assistant_functions(settings) -> List[Dict[str, Any]]:
         },
         {
             "name": "get_github_info",
-            "description": "Get details about one specific GitHub repository.",
+            "description": (
+                "Get deep technical details about one specific named GitHub "
+                "repository."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1195,11 +1264,13 @@ def _handle_assistant_request(request: Request):
     settings = request.app.state.settings
     return {
         "assistant": {
-            "firstMessage": (
-                f"I am RORI, Captain {settings.persona_name}'s loyal ship AI. "
-                "Ask me about his skills, projects, why he is the right fit, "
-                "or schedule a meeting."
-            ),
+            "model": {
+                "provider": "groq",
+                "model": VOICE_ASSISTANT_MODEL,
+                "temperature": 0.3,
+                "systemPrompt": _voice_system_prompt(settings),
+            },
+            "firstMessage": _voice_first_message(settings),
             "functions": _assistant_functions(settings),
         }
     }

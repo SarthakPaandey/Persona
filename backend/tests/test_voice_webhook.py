@@ -235,7 +235,15 @@ def test_voice_assistant_request_includes_tool_functions(voice_client):
     assert response.status_code == 200
     payload = response.json()
     assistant = payload.get("assistant", {})
+    model = assistant.get("model", {})
     functions = assistant.get("functions", [])
+
+    assert model.get("provider") == "groq"
+    assert model.get("model") == "llama-3.1-8b-instant"
+    assert "ANSWER DIRECTLY — NO TOOL CALLS" in model.get("systemPrompt", "")
+    assert "TOOL RESULTS ARE YOUR ANSWER" in model.get("systemPrompt", "")
+    assert "get_availability" in model.get("systemPrompt", "")
+    assert assistant.get("firstMessage", "").startswith("I am RORI")
 
     fn_names = {item.get("name") for item in functions}
     assert {"get_background_info", "get_availability", "book_meeting", "get_github_info"}.issubset(fn_names)
