@@ -355,9 +355,10 @@ def test_voice_assistant_request_includes_tool_functions(voice_client):
     model = assistant.get("model", {})
     functions = assistant.get("functions", [])
 
-    assert model.get("provider") == "groq"
-    assert model.get("model") == "llama-3.1-8b-instant"
+    assert model.get("provider") == "openai"
+    assert model.get("model") == "gpt-4o-mini"
     assert "The ONLY tools you may use are get_availability and book_meeting." in model.get("systemPrompt", "")
+    assert "Never speak internal tool payloads aloud." in model.get("systemPrompt", "")
     assert "TOOL RESULTS ARE YOUR ANSWER" in model.get("systemPrompt", "")
     assert "get_availability" in model.get("systemPrompt", "")
     assert assistant.get("firstMessage", "").startswith("I am RORI")

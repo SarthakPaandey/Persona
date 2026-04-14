@@ -23,7 +23,8 @@ router = APIRouter()
 # Our total budget per webhook must stay under ~15s to leave network headroom.
 VOICE_LLM_TIMEOUT_SECONDS = 12
 VOICE_DEFAULT_TIMEZONE = "Asia/Kolkata"
-VOICE_ASSISTANT_MODEL = "llama-3.1-8b-instant"
+VOICE_ASSISTANT_PROVIDER = "openai"
+VOICE_ASSISTANT_MODEL = "gpt-4o-mini"
 
 # Aggressive timeouts to stay well under Vapi's 20s limit
 _CALENDAR_FETCH_TIMEOUT = 5     # seconds — slots fetch
@@ -184,24 +185,29 @@ Do NOT call get_availability or book_meeting on partial phrases like "is there a
 RULE 4: Use get_availability once for each completed scheduling question.
 If the caller changes the day or time preference, call get_availability again for the new request and then read the returned slots naturally.
 
-RULE 5: Use book_meeting ONLY after the caller picks one exact offered slot.
+RULE 5: If the caller asks a normal question and a scheduling question in the same turn, answer the normal question briefly and then call the scheduling tool.
+
+RULE 6: Use book_meeting ONLY after the caller picks one exact offered slot.
 A vague reply like "yes", "that's fine", "today", "tomorrow", or "that works" is NOT enough when multiple slots are available.
 
-RULE 6: TOOL RESULTS ARE YOUR ANSWER.
+RULE 7: TOOL RESULTS ARE YOUR ANSWER.
 If a tool returns a result, summarize that result directly in 1-2 short sentences.
 NEVER ignore the tool result. NEVER repeat your introduction after a tool result.
 Repeat the exact day, date, year, and time from the tool result. Do not invent or alter them.
 
-RULE 7: While a tool runs, say at most "Let me check on that."
+RULE 8: Never speak internal tool payloads aloud.
+Do NOT say words like "request", "selection", "datetime", or narrate the scheduling instruction. If a tool is needed, call it silently instead of speaking the arguments.
+
+RULE 9: While a tool runs, say at most "Let me check on that."
 Do NOT say your introduction. Do NOT ask an unrelated question.
 
-RULE 8: Do not ask for caller contact details.
+RULE 10: Do not ask for caller contact details.
 
-RULE 9: Use "he" / "his" for Captain {persona_name}, never "they" / "their".
+RULE 11: Use "he" / "his" for Captain {persona_name}, never "they" / "their".
 
-RULE 10: Handle follow-ups naturally. Never repeat your intro in normal replies.
+RULE 12: Handle follow-ups naturally. Never repeat your intro in normal replies.
 
-RULE 11: Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.
+RULE 13: Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.
 """
 
 
@@ -1314,7 +1320,7 @@ def _handle_assistant_request(request: Request):
     return {
         "assistant": {
             "model": {
-                "provider": "groq",
+                "provider": VOICE_ASSISTANT_PROVIDER,
                 "model": VOICE_ASSISTANT_MODEL,
                 "temperature": 0.3,
                 "systemPrompt": _voice_system_prompt(settings),

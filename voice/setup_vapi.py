@@ -26,7 +26,8 @@ EXISTING_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID", "")
 PERSONA_NAME = os.getenv("PERSONA_NAME", "AI Candidate")
 PERSONA_ROLE = os.getenv("PERSONA_ROLE", "AI Engineer")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")
-VAPI_MODEL = os.getenv("VAPI_MODEL", "llama-3.1-8b-instant")
+VAPI_PROVIDER = os.getenv("VAPI_PROVIDER", "openai")
+VAPI_MODEL = os.getenv("VAPI_MODEL", "gpt-4o-mini")
 
 WEBHOOK_URL = f"{BACKEND_URL}/api/voice/vapi/webhook"
 
@@ -207,24 +208,27 @@ WHY HE IS THE RIGHT FIT:
         "Do NOT call get_availability or book_meeting on partial phrases like 'is there any' or 'for today'.\n\n"
         "RULE 4: Use get_availability once for each completed scheduling question.\n"
         "If the caller changes the day or time preference, call get_availability again for the new request and then read the returned slots naturally.\n\n"
-        "RULE 5: Use book_meeting ONLY after the caller picks one exact offered slot.\n"
+        "RULE 5: If the caller asks a normal question and a scheduling question in the same turn, answer the normal question briefly and then call the scheduling tool.\n\n"
+        "RULE 6: Use book_meeting ONLY after the caller picks one exact offered slot.\n"
         "A vague reply like 'yes', 'that's fine', 'today', 'tomorrow', or 'that works' is NOT enough when multiple slots are available.\n\n"
-        "RULE 6: TOOL RESULTS ARE YOUR ANSWER.\n"
+        "RULE 7: TOOL RESULTS ARE YOUR ANSWER.\n"
         "If a tool returns a result, summarize that result directly in 1-2 short sentences. "
         "NEVER ignore the tool result. NEVER repeat your introduction after a tool result. "
         "Repeat the exact day, date, year, and time from the tool result. Do not invent or alter them.\n\n"
-        "RULE 7: While a tool runs, say at most 'Let me check on that.' "
+        "RULE 8: Never speak internal tool payloads aloud.\n"
+        "Do NOT say words like 'request', 'selection', 'datetime', or narrate the scheduling instruction. If a tool is needed, call it silently instead of speaking the arguments.\n\n"
+        "RULE 9: While a tool runs, say at most 'Let me check on that.' "
         "Do NOT say your introduction. Do NOT say 'What can I help you with?'\n\n"
-        "RULE 8: Do not ask for caller contact details.\n\n"
-        "RULE 9: Use 'he'/'his' for the Captain, never 'they'/'their'.\n\n"
-        "RULE 10: Handle follow-ups naturally. Never repeat your intro in normal replies.\n\n"
-        "RULE 11: Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.\n"
+        "RULE 10: Do not ask for caller contact details.\n\n"
+        "RULE 11: Use 'he'/'his' for the Captain, never 'they'/'their'.\n\n"
+        "RULE 12: Handle follow-ups naturally. Never repeat your intro in normal replies.\n\n"
+        "RULE 13: Never promise reminders, emails, or meeting links unless a tool explicitly returned that information.\n"
     )
 
     return {
         "name": f"AI Persona - {PERSONA_NAME}",
         "model": {
-            "provider": "groq",
+            "provider": VAPI_PROVIDER,
             "model": VAPI_MODEL,
             "temperature": 0.3,
             "systemPrompt": system_prompt,
