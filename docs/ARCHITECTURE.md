@@ -25,11 +25,11 @@ flowchart TB
 
     subgraph API[FastAPI Backend]
         MAIN[app.main]
-        CHATAPI[/api/chat and /api/chat/stream/]
-        PERAPI[/api/persona]
-        CALAPI[/api/calendar]
-        VOAPI[/api/voice/vapi/webhook]
-        INGEST[/api/ingest]
+        CHATAPI["/api/chat and /api/chat/stream/"]
+                PERAPI["/api/persona"]
+                CALAPI["/api/calendar"]
+                VOAPI["/api/voice/vapi/webhook"]
+                INGEST["/api/ingest"]
         RAG[RAGEngine]
         CAL[CalendarService]
         GS[GitHubService]
@@ -40,7 +40,7 @@ flowchart TB
         RES[Resume PDF]
         GHA[GitHub API]
         CALCOM[Cal.com v2]
-        LLM[Groq / NVIDIA NIM / ModelScope / OpenAI]
+                LLM["Groq / NVIDIA NIM / ModelScope / OpenAI"]
         EMB[Embeddings provider]
     end
 
