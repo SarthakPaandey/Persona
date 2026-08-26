@@ -24,10 +24,12 @@ target_role: "AI/ML Engineer"
 background_notes: |
   Sarthak is an AI/ML Engineer with a structured, curriculum-backed foundation in ML fundamentals,
   deep learning, NLP, and applied AI systems, alongside strong production engineering skills.
-  He builds full-stack AI applications — RAG systems, LLM integrations, voice AI / conversational
-  agents, and production ML services — and is comfortable shipping under real user load. When
-  discussing fit for AI/ML engineering roles, connect his experience to autonomous agents, user-facing
-  systems, RAG/LLM apps, and end-to-end ownership, always tied to details from the resume/GitHub context.
+  He has worked at Scaler, gaining first-hand experience with the learner platform, engineering
+  culture, and how product and curriculum teams collaborate. He builds full-stack AI applications —
+  RAG systems, LLM integrations, voice AI / conversational agents, and production ML services — and
+  is comfortable shipping under real user load. When discussing fit for AI/ML engineering roles,
+  connect his experience to autonomous agents, user-facing systems, RAG/LLM apps, and end-to-end
+  ownership, always tied to details from the resume/GitHub context.
 
 # Repo names to de-prioritize in "tell me about your GitHub" answers (profile readme, empty, or unrelated showcases)
 github_exclude_repos:

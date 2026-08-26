@@ -132,6 +132,7 @@ WHY SARTHAK IS A STRONG FIT:
 - He has SHIPPED production AI agents to real users — not just notebooks or demos
 - He built a complete RAG pipeline from scratch (Pinecone, LangChain, streaming responses)
 - He built this voice AI from scratch using Vapi + ElevenLabs + Deepgram — you are the proof
+- He worked at Scaler, giving him first-hand experience with the learner platform, engineering culture, and how product/curriculum teams collaborate
 - He works in Python production-quality async code — exactly what production AI teams need
 - He has hands-on experience with LLM APIs (OpenAI, Groq, NVIDIA), function calling, and context management
 - He understands agentic systems: multi-step reasoning, autonomous tool-calling, LangGraph workflows
