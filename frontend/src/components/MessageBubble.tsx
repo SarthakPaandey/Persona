@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Check, Copy, Sparkles } from "lucide-react";
+import { Bot, Check, Copy, Sparkles } from "lucide-react";
 
 import { Message } from "@/lib/types";
 
@@ -62,13 +62,12 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
 
   return (
     <div className="flex gap-3 animate-fade-up">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/space/astronaut.jpg"
-        alt=""
-        className="shrink-0 w-7 h-7 rounded-full object-cover ring-1 ring-cyan-400/60 mt-1 shadow-glow-sm"
-        draggable={false}
-      />
+      <div
+        aria-hidden="true"
+        className="shrink-0 w-7 h-7 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-cyan-300 mt-1 backdrop-blur"
+      >
+        <Bot size={14} strokeWidth={1.9} />
+      </div>
 
       <div className="min-w-0 max-w-[90%] sm:max-w-[78%] group/bubble">
         <div className="relative rounded-2xl rounded-tl-md border border-white/[0.08] bg-black/45 backdrop-blur-md px-4 py-3.5 overflow-hidden shadow-panel">

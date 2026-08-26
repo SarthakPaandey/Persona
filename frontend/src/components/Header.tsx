@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mic, MicOff, Radio } from 'lucide-react';
+import { Bot, Mic, MicOff, Radio } from 'lucide-react';
 
 interface HeaderProps {
   name: string;
@@ -80,19 +80,11 @@ export default function Header({
       />
 
       <div className="relative shrink-0">
-        <div className="relative w-11 h-11 rounded-full p-[1.5px] bg-gradient-to-br from-cyan-400/60 via-violet-400/40 to-cyan-400/20 shadow-glow-sm">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/space/astronaut.jpg"
-            alt="RORI"
-            className="w-full h-full rounded-full object-cover bg-space-900"
-            draggable={false}
-          />
+        <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 via-violet-500/15 to-cyan-500/10 border border-white/[0.08] backdrop-blur flex items-center justify-center text-cyan-200 shadow-glow-sm">
+          <Bot size={18} strokeWidth={1.9} aria-hidden="true" />
         </div>
-        {/* orbital ring — only when systems online */}
-        {resumeConfigured && <span aria-hidden="true" className="orbit-ring" />}
         <span
-          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-black ${resumeConfigured ? 'bg-emerald-400' : 'bg-slate-600'}`}
+          className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full ring-2 ring-black ${resumeConfigured ? 'bg-emerald-400' : 'bg-slate-600'}`}
           title={resumeConfigured ? 'Systems locked' : 'Indexing…'}
         >
           {resumeConfigured && (
