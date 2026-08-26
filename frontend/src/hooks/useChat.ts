@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { sendChatMessage, streamChatMessage } from '@/lib/api';
-import { ChatResponse, ConversationMessage, Message, Source } from '@/lib/types';
+import { ChatResponse, ConversationMessage, Message } from '@/lib/types';
 
 function buildWelcomeMessage(personaName: string) {
-  return `I am **RORI**, ${personaName}'s loyal ship AI. I can tell you about his background, his skills, and schedule a rendezvous!\n\nSet course and ask me about his background, skills, or projects...`;
+  return `Welcome aboard, traveler. I'm **RORI**, the AI navigator of ${personaName}'s ship.\n\nAsk about the mission log — experience, skills, projects — or say "book an interview" and I'll chart a course.`;
 }
 
 function getBrowserTimezone(): string {
@@ -30,7 +30,6 @@ export function useChat(personaName = 'this candidate') {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId] = useState(() => uuidv4());
-  const [sources, setSources] = useState<Source[]>([]);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -90,7 +89,6 @@ export function useChat(personaName = 'this candidate') {
               : message
           )
         );
-        setSources(response.sources || []);
       };
 
       setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
@@ -157,6 +155,5 @@ export function useChat(personaName = 'this candidate') {
     messages,
     isLoading,
     sendMessage,
-    sources,
   };
 }

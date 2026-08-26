@@ -8,61 +8,60 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
+        space: {
+          950: '#030614',
+          900: '#060b1d',
+          800: '#0a1230',
+          700: '#111a3d',
         },
-        neon: {
-          green: '#00ff41',
-          cyan: '#00d9ff',
-          purple: '#ff00ff',
-          pink: '#ff0080',
-          blue: '#0099ff',
-        },
+      },
+      fontFamily: {
+        display: ['var(--font-grotesk)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-jetbrains)', 'ui-monospace', 'monospace'],
+      },
+      boxShadow: {
+        glow: '0 0 28px rgba(34, 211, 238, 0.25)',
+        'glow-sm': '0 0 14px rgba(34, 211, 238, 0.2)',
+        'glow-violet': '0 0 20px rgba(139, 92, 246, 0.25)',
+        panel: '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(103, 232, 249, 0.08)',
       },
       animation: {
-        'bounce-dot': 'bounce 1.4s infinite ease-in-out',
-        'pulse-glow': 'pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'glow-border': 'glowBorder 3s linear infinite',
-        'float': 'float 3s ease-in-out infinite',
-        'flicker': 'flicker 0.15s infinite',
-        'scan': 'scan 8s linear infinite',
+        'fade-up': 'fadeUp 0.35s ease-out both',
+        'fade-in': 'fadeIn 0.4s ease-out both',
+        'bounce-dot': 'bounceDot 1.2s ease-in-out infinite',
+        twinkle: 'twinkle 3s ease-in-out infinite',
+        shoot: 'shoot 7s linear infinite',
+        'glow-drift': 'glowDrift 22s ease-in-out infinite alternate',
       },
       keyframes: {
-        pulseGlow: {
-          '0%, 100%': { 
-            opacity: '1',
-            textShadow: '0 0 5px rgb(0, 255, 65), 0 0 10px rgba(0, 255, 65, 0.5)'
-          },
-          '50%': { 
-            opacity: '0.8',
-            textShadow: '0 0 2px rgb(0, 255, 65), 0 0 5px rgba(0, 255, 65, 0.3)'
-          },
+        fadeUp: {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
         },
-        glowBorder: {
-          '0%': { boxShadow: '0 0 5px rgba(0, 255, 65, 0.5), 0 0 10px rgba(0, 217, 255, 0.3)' },
-          '50%': { boxShadow: '0 0 15px rgba(0, 255, 65, 0.8), 0 0 25px rgba(0, 217, 255, 0.5)' },
-          '100%': { boxShadow: '0 0 5px rgba(0, 255, 65, 0.5), 0 0 10px rgba(0, 217, 255, 0.3)' },
+        fadeIn: {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
         },
-        float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-10px)' },
+        bounceDot: {
+          '0%, 60%, 100%': { transform: 'translateY(0)', opacity: '0.4' },
+          '30%': { transform: 'translateY(-4px)', opacity: '1' },
         },
-        flicker: {
-          '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '0.8' },
+        twinkle: {
+          '0%, 100%': { opacity: '0.15', transform: 'scale(0.85)' },
+          '50%': { opacity: '1', transform: 'scale(1.15)' },
         },
-        scan: {
-          '0%': { transform: 'translateY(0)' },
-          '100%': { transform: 'translateY(10px)' },
+        shoot: {
+          '0%': { transform: 'translate3d(0, 0, 0) rotate(-32deg) scaleX(0.4)', opacity: '0' },
+          '3%': { opacity: '1' },
+          '12%': { transform: 'translate3d(-46vw, 26vh, 0) rotate(-32deg) scaleX(1)', opacity: '0.9' },
+          '16%': { transform: 'translate3d(-58vw, 33vh, 0) rotate(-32deg) scaleX(0.6)', opacity: '0' },
+          '100%': { transform: 'translate3d(-58vw, 33vh, 0)', opacity: '0' },
         },
-      },
-      backdropBlur: {
-        xs: '2px',
+        glowDrift: {
+          from: { transform: 'translate3d(-4%, -2%, 0) scale(1)' },
+          to: { transform: 'translate3d(4%, 3%, 0) scale(1.1)' },
+        },
       },
     },
   },

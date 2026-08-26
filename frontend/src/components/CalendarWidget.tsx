@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useId, useState } from 'react';
+import { CalendarCheck, ExternalLink } from 'lucide-react';
 
 import { bookMeeting } from '@/lib/api';
 import { TimeSlot } from '@/lib/types';
@@ -11,11 +12,15 @@ interface CalendarWidgetProps {
   timezone?: string;
 }
 
+const INPUT_CLASS =
+  'w-full rounded-lg border border-cyan-400/20 bg-black/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 transition-colors focus:border-cyan-300/60 focus:outline-none min-h-[42px]';
+
 export default function CalendarWidget({
   slots = [],
   bookingLink,
   timezone,
 }: CalendarWidgetProps) {
+  const uid = useId();
   const [selectedSlot, setSelectedSlot] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,15 +28,19 @@ export default function CalendarWidget({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    if (!selectedSlot && slots.length > 0) {
-      setSelectedSlot(slots[0].start);
-    }
-  }, [slots, selectedSlot]);
+  const activeSlot = selectedSlot || slots[0]?.start || '';
 
   async function handleBooking() {
-    if (!selectedSlot || !name.trim() || !email.trim()) {
-      setError('REQUIREMENTS NOT MET. PROVIDE DESIGNATION AND COMMS ID (EMAIL).');
+    if (!activeSlot) {
+      setError('Please pick a time slot first.');
+      return;
+    }
+    if (!name.trim() || !email.trim()) {
+      setError('Please provide your name and email.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('That email address does not look valid.');
       return;
     }
 
@@ -43,40 +52,45 @@ export default function CalendarWidget({
       const result = await bookMeeting({
         name: name.trim(),
         email: email.trim(),
-        start_time: selectedSlot,
+        start_time: activeSlot,
         timezone,
-        notes: 'Transmission from Rori Console',
+        notes: 'Booked via AI persona chat',
       });
       setSuccess(result.message);
     } catch (bookingError) {
       console.error('Booking failed:', bookingError);
-      setError('TRANSMISSION FAILED. INITIATING BACKUP PROTOCOL.');
+      setError('Booking failed. Please try again or use the Cal.com link below.');
     } finally {
       setIsBooking(false);
     }
   }
 
-   return (
-     <div className="mt-3 p-3 sm:p-4 bg-black/50 border border-[#00ff41] shadow-[0_0_10px_rgba(0,255,65,0.2)]">
-       <h3 className="font-bold text-[#00ff41] mb-2 uppercase tracking-widest border-b border-[#00ff41]/30 pb-1 text-sm sm:text-base">
-         [ MISSION CALENDAR CONTROLS ]
-       </h3>
-       <p className="text-xs sm:text-sm text-[#00ff41]/80 mb-3 sm:mb-4">
-         {slots.length > 0
-           ? 'SELECT RENDEZVOUS COORDINATES BELOW:'
-           : 'NO LIVE COORDINATES DETECTED. EXTERNAL FALLBACK AVAILABLE.'}
-       </p>
+  return (
+    <div className="rounded-xl border border-cyan-400/20 bg-black/40 p-4">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-100 mb-0.5">
+        <CalendarCheck size={15} className="text-cyan-300" aria-hidden="true" />
+        Book an interview
+      </h3>
+      <p className="text-xs text-slate-500 mb-3.5">
+        {slots.length > 0
+          ? 'Pick a coordinate in spacetime that works for you:'
+          : 'No live availability right now — use the direct link below.'}
+      </p>
 
       {slots.length > 0 && (
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-3">
           <div>
-            <label className="block text-xs font-bold text-[#00ff41] mb-1 uppercase tracking-wider text-[10px] sm:text-xs">
-              TEMPORAL COORDINATE
+            <label
+              htmlFor={`${uid}-slot`}
+              className="block text-xs font-medium text-slate-400 mb-1.5"
+            >
+              Time slot{timezone && <span className="text-slate-600"> · {timezone}</span>}
             </label>
             <select
-              value={selectedSlot}
+              id={`${uid}-slot`}
+              value={activeSlot}
               onChange={(event) => setSelectedSlot(event.target.value)}
-              className="w-full border border-[#00ff41]/50 bg-black/60 px-3 py-2 text-xs sm:text-sm text-[#00ff41] focus:outline-none focus:border-[#00ff41] min-h-[44px]"
+              className={`${INPUT_CLASS} [&>option]:bg-space-900`}
             >
               {slots.map((slot) => (
                 <option key={slot.start} value={slot.start}>
@@ -84,51 +98,79 @@ export default function CalendarWidget({
                 </option>
               ))}
             </select>
-            {timezone && (
-              <p className="mt-1 text-xs text-[#00ff41]/60">ZONE: {timezone}</p>
-            )}
           </div>
 
-           <div className="grid gap-2 sm:gap-3 sm:grid-cols-2">
-             <input
-               value={name}
-               onChange={(event) => setName(event.target.value)}
-               placeholder="DESIGNATION / NAME"
-               className="border border-[#00ff41]/50 bg-black/60 px-3 py-2 text-xs sm:text-sm text-[#00ff41] focus:outline-none focus:border-[#00ff41] placeholder-[#00ff41]/30 uppercase min-h-[44px]"
-             />
-             <input
-               type="email"
-               value={email}
-               onChange={(event) => setEmail(event.target.value)}
-               placeholder="COMMS ID / EMAIL"
-               className="border border-[#00ff41]/50 bg-black/60 px-3 py-2 text-xs sm:text-sm text-[#00ff41] focus:outline-none focus:border-[#00ff41] placeholder-[#00ff41]/30 uppercase min-h-[44px]"
-             />
-           </div>
- 
-           <button
-             type="button"
-             onClick={handleBooking}
-             disabled={isBooking}
-             className="w-full justify-center gap-2 px-4 py-2.5 sm:py-3 bg-[#00ff41]/20 text-[#00ff41] border border-[#00ff41] hover:bg-[#00ff41]/40 disabled:opacity-50 transition-colors text-xs sm:text-sm font-bold uppercase tracking-widest mt-2 min-h-[44px]"
-           >
-            {isBooking ? 'LOCKING COORDINATES...' : 'CONFIRM RENDEZVOUS'}
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor={`${uid}-name`}
+                className="block text-xs font-medium text-slate-400 mb-1.5"
+              >
+                Name
+              </label>
+              <input
+                id={`${uid}-name`}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Jane Recruiter"
+                autoComplete="name"
+                className={INPUT_CLASS}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor={`${uid}-email`}
+                className="block text-xs font-medium text-slate-400 mb-1.5"
+              >
+                Email
+              </label>
+              <input
+                id={`${uid}-email`}
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="jane@company.com"
+                autoComplete="email"
+                className={INPUT_CLASS}
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleBooking}
+            disabled={isBooking || !slots.length}
+            className="w-full py-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 hover:from-violet-400 hover:to-cyan-400 text-white text-sm font-semibold transition-colors min-h-[42px] disabled:opacity-50 active:scale-[0.99] shadow-glow-sm"
+          >
+            {isBooking ? 'Confirming…' : 'Confirm booking'}
           </button>
         </div>
       )}
 
-       {error && <p className="mt-3 text-xs sm:text-sm text-red-500 font-bold uppercase animate-pulse">{error}</p>}
-       {success && <p className="mt-3 text-xs sm:text-sm text-[#00ff41] font-bold uppercase shadow-[0_0_5px_#00ff41] p-2 bg-[#00ff41]/10">{success}</p>}
- 
-       {bookingLink && (
-         <a
-           href={bookingLink}
-           target="_blank"
-           rel="noopener noreferrer"
-           className="mt-3 sm:mt-4 block text-center gap-2 px-4 py-2 bg-black/50 text-[#00ff41] border border-[#00ff41]/50 hover:bg-[#00ff41]/20 transition-colors text-xs font-bold uppercase tracking-widest"
-         >
-           INITIATE MANUAL CAL.COM OVERRIDE &gt;&gt;
-         </a>
-       )}
+      {error && (
+        <p role="alert" className="mt-3 text-xs text-red-400 font-medium">
+          {error}
+        </p>
+      )}
+      {success && (
+        <p
+          role="status"
+          className="mt-3 text-xs text-emerald-300 font-medium p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 break-words"
+        >
+          ✓ {success}
+        </p>
+      )}
+
+      {bookingLink && (
+        <a
+          href={bookingLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2.5 inline-flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-cyan-400/20 text-cyan-300/80 hover:text-cyan-200 hover:bg-cyan-500/[0.07] transition-colors text-xs font-medium"
+        >
+          Or open Cal.com directly <ExternalLink size={12} aria-hidden="true" />
+        </a>
+      )}
     </div>
   );
 }

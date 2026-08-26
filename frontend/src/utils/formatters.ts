@@ -21,11 +21,12 @@ export function truncate(str: string, max = 120): string {
 export function formatSourceLabel(source: string): string {
   const [prefix, ...rest] = source.split(':');
   const label = rest.join(':').replace(/-/g, ' ');
-  const icons: Record<string, string> = {
-    github: '🔗 GitHub',
-    resume: '📄 Resume',
+  const names: Record<string, string> = {
+    github: 'GitHub',
+    resume: 'Resume',
   };
-  return `${icons[prefix] ?? '📋 ' + prefix} · ${label}`;
+  const sourceName = names[prefix] ?? prefix;
+  return label ? `${sourceName} · ${label}` : sourceName;
 }
 
 export function formatRelevance(score: number): string {
