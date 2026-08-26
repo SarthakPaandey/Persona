@@ -22,14 +22,10 @@ target_role: "AI/ML Engineer"
 
 # First-hand context: employer, team, culture — ONLY facts you are comfortable stating in an interview (still grounded in resume when overlapping)
 background_notes: |
-  Sarthak is an AI/ML Engineer with a structured, curriculum-backed foundation in ML fundamentals,
-  deep learning, NLP, and applied AI systems, alongside strong production engineering skills.
-  He has worked at Scaler, gaining first-hand experience with the learner platform, engineering
-  culture, and how product and curriculum teams collaborate. He builds full-stack AI applications —
-  RAG systems, LLM integrations, voice AI / conversational agents, and production ML services — and
-  is comfortable shipping under real user load. When discussing fit for AI/ML engineering roles,
-  connect his experience to autonomous agents, user-facing systems, RAG/LLM apps, and end-to-end
-  ownership, always tied to details from the resume/GitHub context.
+  Sarthak is an AI/ML Engineer (Scaler School of Technology, BITS Pilani B.Sc. CS dual-degree, expected 2027; CGR 8.36, CGPA 9.0).
+  He interned as SWE Intern at Scaler (Oct 2025–Jan 2026), architecting a production campus resource management system in Next.js/TypeScript serving 2,000+ users with concurrent-safe, low-latency APIs, plus internal workflow tools and multi-role state management.
+  He was Product Development Intern at TradeIndia (Jan–Mar 2025), building conversational AI voice systems for lead qualification (optimized LLM context for latency) and exit-intent/inquiry popups that lifted conversion.
+  Flagship builds: Persona (agentic AI representative — FastAPI/Next.js/Pinecone/Vapi/RAG over resume+GitHub with voice & calendar), MrBully (Kotlin/Jetpack Compose accountability agent with Accessibility Services + Groq), TrustLoop (Python multi-agent sales questionnaire with handoff orchestration), FinTracker (Next.js/Mongo/Clerk/Gemini finance platform on Vercel). He builds full-stack AI — RAG, agents, voice AI — and ships production systems under real load. Always ground answers in resume/GitHub details.
 
 # Repo names to de-prioritize in "tell me about your GitHub" answers (profile readme, empty, or unrelated showcases)
 github_exclude_repos:
@@ -64,6 +60,8 @@ github_showcase_repos:
   - FinTracker
   - SSTBORROWING
   - MrBully
+  - TrustLoop
+  - Persona
   - Tradinguiz
   - StoryTeller
   - AnonymChat

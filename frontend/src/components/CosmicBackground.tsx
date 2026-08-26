@@ -12,6 +12,7 @@ interface Star {
   duration: string;
   delay: string;
   opacity: number;
+  bright?: boolean;
 }
 
 interface ShootingStarProps {
@@ -34,18 +35,28 @@ function StarField() {
 
   useEffect(() => {
     const mobile = window.innerWidth < 768;
-    const count = mobile ? 56 : 88;
-    setStars(
-      Array.from({ length: count }, (_, i) => ({
-        id: i,
-        left: `${Math.random() * 100}%`,
-        top: `${Math.random() * 100}%`,
-        size: 1 + Math.random() * 1.6,
-        duration: `${2.2 + Math.random() * 3.6}s`,
-        delay: `${Math.random() * 4}s`,
-        opacity: 0.45 + Math.random() * 0.55,
-      }))
-    );
+    const count = mobile ? 78 : 168;
+    const brightCount = mobile ? 6 : 14;
+    const regular = Array.from({ length: count - brightCount }, (_, i) => ({
+      id: i,
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 100}%`,
+      size: 1 + Math.random() * 1.4,
+      duration: `${2.2 + Math.random() * 3.4}s`,
+      delay: `${Math.random() * 4}s`,
+      opacity: 0.35 + Math.random() * 0.55,
+    }));
+    const bright = Array.from({ length: brightCount }, (_, i) => ({
+      id: count - brightCount + i,
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 100}%`,
+      size: 1.9 + Math.random() * 1.2,
+      duration: `${2.8 + Math.random() * 2.2}s`,
+      delay: `${Math.random() * 3}s`,
+      opacity: 0.85 + Math.random() * 0.15,
+      bright: true,
+    }));
+    setStars([...regular, ...bright]);
   }, []);
 
   return (
@@ -62,11 +73,65 @@ function StarField() {
             animationDuration: s.duration,
             animationDelay: s.delay,
             opacity: s.opacity,
-            boxShadow: s.size > 1.6 ? `0 0 ${s.size * 2.4}px rgba(224, 242, 254, 0.9)` : undefined,
+            boxShadow: s.bright
+              ? `0 0 ${s.size * 3.2}px rgba(224, 242, 254, 1), 0 0 ${s.size * 8}px rgba(103, 232, 249, 0.5)`
+              : s.size > 1.6
+                ? `0 0 ${s.size * 2.2}px rgba(224, 242, 254, 0.85)`
+                : undefined,
           }}
         />
       ))}
     </>
+  );
+}
+
+function Planet({
+  size,
+  ringSize,
+  gradient,
+  halo,
+  className,
+  style,
+}: {
+  size: number;
+  ringSize: number;
+  gradient: string;
+  halo: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div className={className} style={style}>
+      <div
+        className="planet"
+        style={{
+          width: size,
+          height: size,
+          background: gradient,
+        }}
+      />
+      <div
+        className="planet-ring"
+        style={{
+          position: "absolute",
+          top: -(ringSize - size) / 2,
+          left: -(ringSize - size) / 2,
+          width: ringSize,
+          height: ringSize,
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute rounded-full blur-[20px] opacity-30"
+        style={{
+          width: size + 16,
+          height: size + 16,
+          left: -8,
+          top: -8,
+          background: `radial-gradient(circle, ${halo}, transparent 70%)`,
+        }}
+      />
+    </div>
   );
 }
 
@@ -91,7 +156,7 @@ export default function CosmicBackground() {
 
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none select-none" aria-hidden="true">
-      {/* Nebula — natural indigo/violet, no hue-chaos, slow drift + parallax */}
+      {/* Nebula */}
       <div
         className="absolute inset-0 ken-burns will-change-transform"
         style={{
@@ -108,7 +173,6 @@ export default function CosmicBackground() {
           }}
           draggable={false}
         />
-        {/* color wash — very subtle */}
         <div
           className="absolute inset-0 mix-blend-soft-light opacity-[0.18]"
           style={{
@@ -119,20 +183,20 @@ export default function CosmicBackground() {
         <div className="absolute inset-0 bg-[#030614]/[0.22]" />
       </div>
 
-      {/* Depth haze — stronger to push focus to deck */}
+      {/* Depth haze */}
       <div className="absolute inset-0 bg-gradient-to-b from-space-950/50 via-space-950/18 to-space-950/75" />
       <div className="absolute inset-0 vignette-strong" />
 
-      {/* Nebular glows — muted, parallax at different depths */}
+      {/* Nebular glows */}
       <div
-        className="absolute top-[8%] -left-[10%] w-[54%] h-[56%] rounded-full blur-[110px] opacity-[0.22] animate-glow-drift will-change-transform"
+        className="absolute top-[6%] -left-[12%] w-[56%] h-[58%] rounded-full blur-[110px] opacity-[0.20] animate-glow-drift will-change-transform"
         style={{
           background: "radial-gradient(ellipse, rgba(99, 102, 241, 0.50) 0%, transparent 70%)",
           transform: `translate3d(${parallax.x * 18}px, ${parallax.y * 14}px, 0)`,
         }}
       />
       <div
-        className="absolute bottom-[2%] -right-[10%] w-[50%] h-[48%] rounded-full blur-[110px] opacity-[0.18] animate-glow-drift will-change-transform"
+        className="absolute bottom-[0%] -right-[12%] w-[52%] h-[50%] rounded-full blur-[110px] opacity-[0.16] animate-glow-drift will-change-transform"
         style={{
           background: "radial-gradient(ellipse, rgba(56, 189, 248, 0.38) 0%, transparent 70%)",
           animationDelay: "-12s",
@@ -140,7 +204,7 @@ export default function CosmicBackground() {
         }}
       />
       <div
-        className="absolute top-[42%] left-[42%] w-[26%] h-[34%] rounded-full blur-[90px] opacity-[0.10] hidden lg:block"
+        className="absolute top-[42%] left-[40%] w-[30%] h-[34%] rounded-full blur-[90px] opacity-[0.10] hidden lg:block"
         style={{
           background: "radial-gradient(ellipse, rgba(192, 132, 252, 0.45) 0%, transparent 72%)",
           transform: `translate3d(${parallax.x * 8}px, ${parallax.y * 6}px, 0)`,
@@ -148,37 +212,48 @@ export default function CosmicBackground() {
       />
 
       <StarField />
-      <ShootingStar top="14%" delay="3s" duration="10s" />
-      <ShootingStar top="42%" delay="13s" duration="12s" />
+      <ShootingStar top="10%" delay="2s" duration="10s" />
+      <ShootingStar top="36%" delay="9s" duration="11s" />
+      <ShootingStar top="58%" delay="17s" duration="10s" />
+      <ShootingStar top="76%" delay="26s" duration="12s" />
 
-      {/* Film grain + vignette */}
       <div className="noise-overlay" />
-      
-      {/* Ringed planet — parallax */}
-      <div
-        className="absolute top-[14%] right-[8%] hidden sm:block will-change-transform"
-        style={{ transform: `translate3d(${parallax.x * -10}px, ${parallax.y * -8}px, 0)` }}
-      >
-        <div className="planet" />
-        <div className="planet-ring" style={{ position: "absolute", top: "-38px", left: "-38px" }} />
-        {/* soft atmospheric halo */}
-        <div
-          aria-hidden="true"
-          className="absolute rounded-full blur-[22px] opacity-40"
-          style={{
-            width: 96,
-            height: 96,
-            left: -6,
-            top: -6,
-            background: "radial-gradient(circle, rgba(167,139,250,0.4), transparent 70%)",
-          }}
-        />
-      </div>
 
-      {/* Ships — fewer, more intentional */}
-      <Spaceship top="18%" duration={38} delay={2} scale={1} />
-      <Spaceship top="68%" duration={52} delay={14} scale={0.78} />
-      <Spaceship top="84%" duration={44} delay={28} scale={0.88} reverse />
+      {/* Planets — three worlds */}
+      <Planet
+        size={86}
+        ringSize={162}
+        gradient="radial-gradient(circle at 30% 28%, #ddd6fe 0%, #a78bfa 26%, #7c5bd4 44%, #3b2a7a 68%, #150a3d 100%)"
+        halo="rgba(167,139,250,0.45)"
+        className="absolute hidden sm:block will-change-transform"
+        style={{ top: "12%", right: "7%", transform: `translate3d(${parallax.x * -10}px, ${parallax.y * -8}px, 0)` }}
+      />
+      {/* Rust world — bottom left */}
+      <Planet
+        size={62}
+        ringSize={118}
+        gradient="radial-gradient(circle at 32% 30%, #fed7aa 0%, #fb923c 22%, #ea580c 42%, #7c2d12 72%, #1c0a04 100%)"
+        halo="rgba(251,146,60,0.32)"
+        className="absolute hidden md:block will-change-transform"
+        style={{ bottom: "14%", left: "5%", transform: `translate3d(${parallax.x * 12}px, ${parallax.y * 9}px, 0)` }}
+      />
+      {/* Ice world — mid left */}
+      <Planet
+        size={44}
+        ringSize={84}
+        gradient="radial-gradient(circle at 30% 28%, #e0f2fe 0%, #7dd3fc 24%, #0ea5e9 44%, #0c4a6e 74%, #020617 100%)"
+        halo="rgba(125,211,252,0.32)"
+        className="absolute hidden lg:block will-change-transform"
+        style={{ top: "38%", left: "10%", transform: `translate3d(${parallax.x * -6}px, ${parallax.y * 5}px, 0)` }}
+      />
+
+      {/* Ships — busy trade lanes */}
+      <Spaceship top="13%" duration={32} delay={1} scale={1} />
+      <Spaceship top="21%" duration={46} delay={7} scale={0.62} reverse />
+      <Spaceship top="48%" duration={52} delay={12} scale={0.82} />
+      <Spaceship top="62%" duration={40} delay={19} scale={0.7} reverse />
+      <Spaceship top="76%" duration={44} delay={26} scale={0.9} />
+      <Spaceship top="86%" duration={58} delay={34} scale={0.58} reverse />
     </div>
   );
 }
