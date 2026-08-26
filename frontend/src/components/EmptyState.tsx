@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { BookOpen, Bot, CalendarCheck, Github, Sparkles } from 'lucide-react';
+import { ArrowUpRight, BookOpen, Bot, CalendarCheck, Github, Sparkles } from 'lucide-react';
 
 interface EmptyStateProps {
   personaName: string;
@@ -11,62 +11,67 @@ interface EmptyStateProps {
 const SUGGESTIONS = [
   {
     icon: Sparkles,
-    title: 'Skills & experience',
+    label: 'Skills & experience',
     query: 'What AI engineering skills do you have?',
   },
   {
     icon: Github,
-    title: 'Latest projects',
+    label: 'Latest projects',
     query: 'Show me your latest GitHub projects',
   },
   {
     icon: BookOpen,
-    title: 'RAG deep dive',
+    label: 'RAG deep dive',
     query: 'Tell me about your RAG experience',
   },
   {
     icon: CalendarCheck,
-    title: 'Book an interview',
+    label: 'Book an interview',
     query: "I'd like to book an interview",
   },
 ];
 
 export default function EmptyState({ personaName, onPick }: EmptyStateProps) {
   return (
-    <div className="min-h-full flex flex-col items-center justify-center text-center px-2 py-12 sm:py-14 animate-fade-up">
-      <div className="w-12 h-12 rounded-xl bg-white/[0.04] border border-white/[0.08] backdrop-blur flex items-center justify-center text-cyan-300 shadow-glow-sm">
-        <Bot size={22} strokeWidth={1.8} aria-hidden="true" />
+    <div className="min-h-full flex flex-col items-center justify-center text-center px-2 py-10 sm:py-12 animate-fade-up">
+      <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center text-slate-400">
+        <Bot size={18} strokeWidth={1.8} aria-hidden="true" />
       </div>
 
-      <h2 className="mt-4 font-display text-xl sm:text-2xl font-semibold tracking-tight text-slate-100">
+      <h2 className="mt-3 font-display text-lg font-medium tracking-tight text-slate-100">
         Ask RORI
       </h2>
-      <p className="mt-1.5 text-sm text-slate-500">
-        Ask about {personaName} — skills, projects, or availability
-      </p>
+      <p className="mt-1 text-sm text-slate-500">Ask about {personaName}</p>
 
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-[520px]">
-        {SUGGESTIONS.map(({ icon: Icon, title, query }) => (
+      <div className="mt-7 w-full max-w-[520px] space-y-2">
+        {SUGGESTIONS.map(({ icon: Icon, label, query }) => (
           <button
             key={query}
             type="button"
             onClick={() => onPick(query)}
-            className="group text-left flex items-center gap-3 p-3.5 rounded-xl border border-white/[0.07] bg-black/30 hover:bg-black/40 hover:border-white/[0.12] backdrop-blur-sm transition-colors"
+            className="group flex w-full items-center gap-3 rounded-full border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.10] px-4 py-3 text-left transition-colors"
           >
-            <span className="w-8 h-8 shrink-0 rounded-lg bg-white/[0.04] border border-white/[0.06] text-slate-400 group-hover:text-cyan-300 group-hover:border-cyan-400/20 flex items-center justify-center transition-colors">
-              <Icon size={15} aria-hidden="true" />
+            <span className="w-7 h-7 shrink-0 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-slate-500 group-hover:text-slate-300 transition-colors">
+              <Icon size={13} aria-hidden="true" />
             </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-slate-200 group-hover:text-white leading-none">
-                {title}
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium leading-none text-slate-200 group-hover:text-white">
+                {label}
               </span>
-              <span className="block mt-1 text-xs text-slate-500 leading-snug truncate">
+              <span className="block text-xs leading-none text-slate-500 truncate mt-1">
                 {query}
               </span>
             </span>
+            <ArrowUpRight
+              size={14}
+              className="shrink-0 text-slate-600 group-hover:text-slate-400 transition-colors"
+              aria-hidden="true"
+            />
           </button>
         ))}
       </div>
+
+      <p className="mt-6 text-xs text-slate-600">Tap a question or type your own below</p>
     </div>
   );
 }

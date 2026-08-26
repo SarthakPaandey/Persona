@@ -104,45 +104,45 @@ export default function CosmicBackground() {
           alt=""
           className="w-full h-full object-cover"
           style={{
-            filter: "saturate(1.08) brightness(1.08) contrast(1.06)",
+            filter: "saturate(1.03) brightness(1.02) contrast(1.04)",
           }}
           draggable={false}
         />
-        {/* color wash — tint nebula toward deep space indigo without destroying photo */}
+        {/* color wash — very subtle */}
         <div
-          className="absolute inset-0 mix-blend-soft-light opacity-[0.32]"
+          className="absolute inset-0 mix-blend-soft-light opacity-[0.18]"
           style={{
             background:
-              "radial-gradient(ellipse 85% 70% at 28% 22%, #6366f1 0%, transparent 55%), radial-gradient(ellipse 70% 55% at 82% 88%, #22d3ee 0%, transparent 55%)",
+              "radial-gradient(ellipse 85% 70% at 28% 22%, #6366f1 0%, transparent 58%), radial-gradient(ellipse 70% 55% at 82% 88%, #22d3ee 0%, transparent 58%)",
           }}
         />
-        <div className="absolute inset-0 bg-[#030614]/[0.16]" />
+        <div className="absolute inset-0 bg-[#030614]/[0.22]" />
       </div>
 
-      {/* Depth haze */}
-      <div className="absolute inset-0 bg-gradient-to-b from-space-950/40 via-transparent to-space-950/70" />
+      {/* Depth haze — stronger to push focus to deck */}
+      <div className="absolute inset-0 bg-gradient-to-b from-space-950/50 via-space-950/18 to-space-950/75" />
       <div className="absolute inset-0 vignette-strong" />
 
-      {/* Nebular glows — parallax at different depths */}
+      {/* Nebular glows — muted, parallax at different depths */}
       <div
-        className="absolute top-[8%] -left-[10%] w-[54%] h-[56%] rounded-full blur-[110px] opacity-[0.38] animate-glow-drift will-change-transform"
+        className="absolute top-[8%] -left-[10%] w-[54%] h-[56%] rounded-full blur-[110px] opacity-[0.22] animate-glow-drift will-change-transform"
         style={{
-          background: "radial-gradient(ellipse, rgba(99, 102, 241, 0.62) 0%, transparent 68%)",
+          background: "radial-gradient(ellipse, rgba(99, 102, 241, 0.50) 0%, transparent 70%)",
           transform: `translate3d(${parallax.x * 18}px, ${parallax.y * 14}px, 0)`,
         }}
       />
       <div
-        className="absolute bottom-[2%] -right-[10%] w-[50%] h-[48%] rounded-full blur-[110px] opacity-[0.32] animate-glow-drift will-change-transform"
+        className="absolute bottom-[2%] -right-[10%] w-[50%] h-[48%] rounded-full blur-[110px] opacity-[0.18] animate-glow-drift will-change-transform"
         style={{
-          background: "radial-gradient(ellipse, rgba(56, 189, 248, 0.48) 0%, transparent 68%)",
+          background: "radial-gradient(ellipse, rgba(56, 189, 248, 0.38) 0%, transparent 70%)",
           animationDelay: "-12s",
           transform: `translate3d(${parallax.x * -14}px, ${parallax.y * -10}px, 0)`,
         }}
       />
       <div
-        className="absolute top-[42%] left-[42%] w-[26%] h-[34%] rounded-full blur-[90px] opacity-[0.18] hidden lg:block"
+        className="absolute top-[42%] left-[42%] w-[26%] h-[34%] rounded-full blur-[90px] opacity-[0.10] hidden lg:block"
         style={{
-          background: "radial-gradient(ellipse, rgba(192, 132, 252, 0.55) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse, rgba(192, 132, 252, 0.45) 0%, transparent 72%)",
           transform: `translate3d(${parallax.x * 8}px, ${parallax.y * 6}px, 0)`,
         }}
       />

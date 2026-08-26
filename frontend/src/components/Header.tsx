@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, Mic, MicOff, Radio } from 'lucide-react';
+import { Bot, Mic, MicOff } from 'lucide-react';
 
 interface HeaderProps {
   name: string;
@@ -71,21 +71,21 @@ export default function Header({
   const displayRole = role === 'Candidate' ? 'AI/ML Engineer' : role || 'AI/ML Engineer';
 
   return (
-    <header className="relative flex items-center gap-3.5 px-4 sm:px-5 py-4 border-b border-white/[0.07] bg-black/30 backdrop-blur-xl overflow-hidden">
+    <header className="relative flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-white/[0.06] bg-black/20 backdrop-blur-xl overflow-hidden">
       {/* glass highlight */}
-      <div aria-hidden="true" className="absolute inset-0 glass-highlight pointer-events-none" />
+      <div aria-hidden="true" className="absolute inset-0 glass-highlight pointer-events-none opacity-50" />
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/30 to-transparent"
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"
       />
 
       <div className="relative shrink-0">
-        <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 via-violet-500/15 to-cyan-500/10 border border-white/[0.08] backdrop-blur flex items-center justify-center text-cyan-200 shadow-glow-sm">
-          <Bot size={18} strokeWidth={1.9} aria-hidden="true" />
+        <div className="relative w-9 h-9 rounded-xl bg-white/[0.04] border border-white/[0.08] backdrop-blur flex items-center justify-center text-slate-300">
+          <Bot size={16} strokeWidth={1.8} aria-hidden="true" />
         </div>
         <span
-          className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full ring-2 ring-black ${resumeConfigured ? 'bg-emerald-400' : 'bg-slate-600'}`}
-          title={resumeConfigured ? 'Systems locked' : 'Indexing…'}
+          className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full ring-2 ring-black ${resumeConfigured ? 'bg-emerald-400' : 'bg-slate-600'}`}
+          title={resumeConfigured ? 'Online' : 'Indexing…'}
         >
           {resumeConfigured && (
             <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-40" />
@@ -94,56 +94,39 @@ export default function Header({
       </div>
 
       <div className="relative min-w-0 flex-1">
-        <h1 className="font-display text-[17px] tracking-[0.09em] flex flex-wrap items-center gap-2 leading-none">
+        <h1 className="font-display text-[15px] tracking-[0.08em] flex items-center gap-2 leading-none">
           <span className="bg-gradient-to-r from-cyan-200 via-cyan-300 to-violet-300 bg-clip-text text-transparent font-semibold uppercase">
             RORI
           </span>
-          <span className="text-[10px] font-sans font-semibold uppercase tracking-[0.18em] px-2 py-0.5 rounded-full bg-cyan-500/[0.10] text-cyan-200 border border-cyan-400/20">
+          <span className="text-[9px] font-sans font-semibold uppercase tracking-[0.16em] px-1.5 py-0.5 rounded-full bg-white/[0.04] text-slate-400 border border-white/[0.08]">
             Ship AI
           </span>
-          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono tracking-widest text-slate-500">
-            <Radio size={10} className="text-cyan-400/70" aria-hidden="true" />
-            NAV-COM
-          </span>
         </h1>
-        <p className="text-[13px] leading-tight truncate mt-1">
-          <span className="text-slate-200 font-medium">Navigator for {name}</span>
-          <span className="text-slate-500 mx-1.5">•</span>
-          <span className="text-slate-400">{displayRole}</span>
-        </p>
-        <p className="hidden lg:block text-[11px] text-slate-500 mt-0.5 tracking-wide">
-          Ask about the mission log — skills, projects, experience — or chart a course for an interview.
+        <p className="text-xs leading-tight truncate mt-1">
+          <span className="text-slate-300 font-medium">{name}</span>
+          <span className="text-slate-600 mx-1">•</span>
+          <span className="text-slate-500">{displayRole}</span>
         </p>
       </div>
 
-      <div className="relative flex items-center gap-2 shrink-0">
+      <div className="relative flex items-center gap-1.5 shrink-0">
         <StatusPill
           ok={resumeConfigured}
-          label={resumeConfigured ? 'SIGNAL LOCKED' : 'SIGNAL SEARCHING'}
+          label={resumeConfigured ? 'ONLINE' : 'OFFLINE'}
         />
         <StatusPill
           ok={voiceEnabled}
-          label={voiceEnabled ? 'VOICE LINK' : 'VOICE STANDBY'}
+          label={voiceEnabled ? 'VOICE' : 'VOICE OFF'}
           icon={voiceEnabled ? <Mic size={11} /> : <MicOff size={11} />}
         />
-        <div className="hidden lg:flex items-center gap-2.5 pl-3 pr-2.5 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] backdrop-blur-sm">
-          <span className="flex items-center gap-1.5 text-[11px] font-mono font-medium text-emerald-300">
-            <span className="led-dot w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-            LINK SECURE
-          </span>
-          <span className="h-3 w-px bg-white/10" aria-hidden="true" />
+        <div className="hidden sm:flex items-center gap-1.5 pl-2.5 pr-2.5 py-1 rounded-full border border-white/[0.06] bg-white/[0.03] backdrop-blur-sm">
+          <span className="led-dot w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
           {utcTime ? (
-            <span className="text-[11px] font-mono tracking-wide text-cyan-200/80">{utcTime}</span>
+            <span className="text-[11px] font-mono tracking-wide text-slate-400">{utcTime}</span>
           ) : (
-            <span className="text-[11px] font-mono text-slate-600">--:--:-- UTC</span>
+            <span className="text-[11px] font-mono text-slate-600">--:--:--</span>
           )}
         </div>
-        {/* mobile condensed clock */}
-        {utcTime && (
-          <span className="lg:hidden text-[10px] font-mono tracking-widest text-cyan-300/70 border border-white/[0.06] bg-white/[0.04] rounded-full px-2 py-1">
-            {utcTime.slice(0, 5)}
-          </span>
-        )}
       </div>
     </header>
   );

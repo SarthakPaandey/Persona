@@ -14,7 +14,7 @@ function HudCorner({ className }: { className: string }) {
   return (
     <div
       aria-hidden="true"
-      className={`absolute w-6 h-6 border-cyan-300/60 pointer-events-none z-20 ${className}`}
+      className={`absolute w-5 h-5 border-white/20 pointer-events-none z-20 ${className}`}
     />
   );
 }
@@ -29,42 +29,38 @@ export default function Home() {
       <CosmicBackground />
 
       <div className="relative z-10 flex flex-col h-dvh max-w-[840px] mx-auto p-3 sm:p-5 lg:p-6">
-        {/* soft outer glow behind the deck */}
+        {/* soft outer glow behind the deck — ultra subtle */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 -z-10 blur-[50px] opacity-30 pointer-events-none hidden sm:block"
+          className="absolute inset-0 -z-10 blur-[46px] opacity-[0.16] pointer-events-none hidden sm:block"
           style={{
             background:
-              "radial-gradient(ellipse 70% 45% at 50% 38%, rgba(34,211,238,0.16), transparent 68%), radial-gradient(ellipse 50% 32% at 50% 85%, rgba(139,92,246,0.14), transparent 70%)",
+              "radial-gradient(ellipse 68% 42% at 50% 36%, rgba(34,211,238,0.10), transparent 68%), radial-gradient(ellipse 48% 30% at 50% 88%, rgba(139,92,246,0.08), transparent 70%)",
           }}
         />
 
-        <div className="relative flex flex-col flex-1 min-h-0 rounded-[22px] border border-white/[0.09] bg-space-950/30 shadow-panel-strong overflow-hidden ring-1 ring-white/[0.06] backdrop-blur-2xl animate-fade-in">
-          {/* glass + depth */}
-          <div className="absolute inset-0 bg-gradient-to-b from-white/[0.06] via-transparent to-black/20" />
-          <div className="absolute inset-0 bg-space-950/35" />
+        <div className="relative flex flex-col flex-1 min-h-0 rounded-[22px] border border-white/[0.07] bg-black/25 shadow-panel overflow-hidden backdrop-blur-2xl animate-fade-in">
+          {/* glass + depth — muted */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/[0.04] via-transparent to-black/20" />
+          <div className="absolute inset-0 bg-space-950/22" />
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/35 pointer-events-none"
+            className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/28 pointer-events-none"
           />
-          <div aria-hidden="true" className="absolute inset-0 hud-grid pointer-events-none opacity-70" />
-          <div aria-hidden="true" className="panel-scan opacity-60" />
-          <div aria-hidden="true" className="absolute inset-0 glass-highlight pointer-events-none opacity-[0.45]" />
+          <div aria-hidden="true" className="absolute inset-0 hud-grid pointer-events-none opacity-30" />
+          <div aria-hidden="true" className="panel-scan opacity-25" />
+          <div aria-hidden="true" className="absolute inset-0 glass-highlight pointer-events-none opacity-[0.22]" />
 
-          {/* HUD corner brackets */}
-          <HudCorner className="top-3 left-3 border-t-[1.5px] border-l-[1.5px] rounded-tl-sm" />
-          <HudCorner className="top-3 right-3 border-t-[1.5px] border-r-[1.5px] rounded-tr-sm" />
-          <HudCorner className="bottom-3 left-3 border-b-[1.5px] border-l-[1.5px] rounded-bl-sm" />
-          <HudCorner className="bottom-3 right-3 border-b-[1.5px] border-r-[1.5px] rounded-br-sm" />
+          {/* HUD corner brackets — faint */}
+          <HudCorner className="top-3 left-3 border-t border-l rounded-tl-sm" />
+          <HudCorner className="top-3 right-3 border-t border-r rounded-tr-sm" />
+          <HudCorner className="bottom-3 left-3 border-b border-l rounded-bl-sm" />
+          <HudCorner className="bottom-3 right-3 border-b border-r rounded-br-sm" />
 
-          {/* top accent */}
+          {/* top hairline */}
           <div
             aria-hidden="true"
-            className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-cyan-300/50 to-transparent"
-          />
-          <div
-            aria-hidden="true"
-            className="absolute top-0 inset-x-[18%] h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent blur-[0.5px]"
+            className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"
           />
 
           <div className="relative z-10 flex flex-col flex-1 min-h-0">

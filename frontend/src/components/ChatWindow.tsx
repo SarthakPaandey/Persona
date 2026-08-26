@@ -64,11 +64,9 @@ export default function ChatWindow({
         ) : (
           <>
             <div className="flex items-center gap-3 py-1" aria-hidden="true">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/[0.06]" />
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] px-2.5 py-1 text-[11px] font-mono tracking-widest uppercase text-slate-500">
-                <span className="w-1 h-1 rounded-full bg-emerald-400/80" /> Today • Encrypted link
-              </span>
-              <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/[0.06]" />
+              <div className="h-px flex-1 bg-white/[0.06]" />
+              <span className="text-[11px] font-mono tracking-widest uppercase text-slate-600">Today</span>
+              <div className="h-px flex-1 bg-white/[0.06]" />
             </div>
 
             {messages.map((message) => {
@@ -106,7 +104,7 @@ export default function ChatWindow({
         <button
           type="button"
           onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
-          className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-cyan-400/20 bg-black/70 backdrop-blur-md px-3.5 py-1.5 text-xs font-medium tracking-wide text-cyan-200 shadow-panel hover:bg-black/80 transition-colors"
+          className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-black/60 backdrop-blur-md px-3 py-1.5 text-xs font-medium tracking-wide text-slate-300 shadow-panel hover:bg-black/70 transition-colors"
         >
           <ArrowDown size={13} aria-hidden="true" />
           Jump to latest

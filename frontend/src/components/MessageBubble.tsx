@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Bot, Check, Copy, Sparkles } from "lucide-react";
+import { Bot, Check, Copy } from "lucide-react";
 
 import { Message } from "@/lib/types";
 
@@ -70,88 +70,70 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
       </div>
 
       <div className="min-w-0 max-w-[90%] sm:max-w-[78%] group/bubble">
-        <div className="relative rounded-2xl rounded-tl-md border border-white/[0.08] bg-black/45 backdrop-blur-md px-4 py-3.5 overflow-hidden shadow-panel">
-          {/* left accent beam */}
-          <div
-            aria-hidden="true"
-            className="absolute left-0 top-3 bottom-3 w-px bg-gradient-to-b from-cyan-300/70 via-cyan-300/20 to-transparent"
-          />
-          {/* top highlight */}
-          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-cyan-300/20 via-white/10 to-transparent opacity-60" />
-          <div aria-hidden="true" className="absolute inset-0 glass-highlight pointer-events-none opacity-[0.55]" />
+        <div className="rounded-2xl rounded-tl-md border border-white/[0.07] bg-black/30 backdrop-blur px-4 py-3">
+          <div className="mb-1.5 flex items-center gap-2 text-[11px] font-mono tracking-wide text-slate-500">
+            <span className="inline-flex items-center gap-1 text-slate-400">
+              <Bot size={11} aria-hidden="true" />
+              RORI
+            </span>
+            <span className="w-1 h-1 rounded-full bg-white/15" aria-hidden="true" />
+            <span>{time || 'now'}</span>
+          </div>
 
-          <div className="relative">
-            <div className="mb-2 flex items-center gap-2 text-[11px] font-medium tracking-wide">
-              <span className="inline-flex items-center gap-1.5 text-cyan-200">
-                <Sparkles size={11} className="text-cyan-300" aria-hidden="true" />
-                RORI
-              </span>
-              <span className="w-1 h-1 rounded-full bg-white/20" aria-hidden="true" />
-              <span className="font-mono text-slate-500">{time || 'now'}</span>
-              {isStreaming && (
-                <span className="ml-1 inline-flex items-center gap-1 text-emerald-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  streaming
+          <div className="chat-markdown text-[15px] text-slate-200">
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+            {isStreaming && message.content?.trim() && <span className="stream-cursor" aria-hidden="true" />}
+          </div>
+
+          {(message.bookingLink || (message.availableSlots?.length ?? 0) > 0) && (
+            <div className="mt-3">
+              <CalendarWidget
+                slots={message.availableSlots}
+                bookingLink={message.bookingLink}
+                timezone={message.timezone}
+              />
+            </div>
+          )}
+
+          {!!message.sources?.length && (
+            <div className="mt-3 pt-3 border-t border-white/[0.06]">
+              <button
+                type="button"
+                onClick={() => setShowSources(!showSources)}
+                aria-expanded={showSources}
+                className="inline-flex items-center gap-1 text-xs font-medium tracking-wide text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <span
+                  className={`inline-block transition-transform duration-200 ${showSources ? "rotate-90" : ""}`}
+                  aria-hidden="true"
+                >
+                  ▸
                 </span>
+                Sources ({message.sources.length})
+              </button>
+
+              {showSources && (
+                <div className="mt-2.5 space-y-2 animate-fade-up">
+                  {message.sources.map((source, idx) => (
+                    <SourceCitation key={`${source.source}-${idx}`} source={source} />
+                  ))}
+                </div>
               )}
             </div>
-
-            <div className="chat-markdown text-[15px] text-slate-200">
-              <ReactMarkdown>{message.content}</ReactMarkdown>
-              {isStreaming && message.content?.trim() && <span className="stream-cursor" aria-hidden="true" />}
-            </div>
-
-            {(message.bookingLink || (message.availableSlots?.length ?? 0) > 0) && (
-              <div className="mt-3.5">
-                <CalendarWidget
-                  slots={message.availableSlots}
-                  bookingLink={message.bookingLink}
-                  timezone={message.timezone}
-                />
-              </div>
-            )}
-
-            {!!message.sources?.length && (
-              <div className="mt-3.5 pt-3 border-t border-white/[0.06]">
-                <button
-                  type="button"
-                  onClick={() => setShowSources(!showSources)}
-                  aria-expanded={showSources}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium tracking-wide text-cyan-200/80 hover:text-cyan-100 transition-colors"
-                >
-                  <span
-                    className={`inline-block transition-transform duration-200 ${showSources ? "rotate-90" : ""}`}
-                    aria-hidden="true"
-                  >
-                    ▸
-                  </span>
-                  Signal sources — {message.sources.length} {message.sources.length === 1 ? 'fragment' : 'fragments'}
-                </button>
-
-                {showSources && (
-                  <div className="mt-3 space-y-2.5 animate-fade-up">
-                    {message.sources.map((source, idx) => (
-                      <SourceCitation key={`${source.source}-${idx}`} source={source} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        <div className="mt-1.5 flex items-center gap-2 pl-1">
+        <div className="mt-1 flex items-center gap-2 pl-1">
           <button
             type="button"
             onClick={handleCopy}
             aria-label={copied ? "Copied" : "Copy message"}
             title="Copy message"
-            className="inline-flex items-center gap-1 text-[11px] font-medium tracking-wide text-slate-500 hover:text-cyan-300 transition-colors opacity-0 group-hover/bubble:opacity-100 focus-visible:opacity-100"
+            className="inline-flex items-center gap-1 text-[11px] font-medium tracking-wide text-slate-500 hover:text-slate-300 transition-colors opacity-0 group-hover/bubble:opacity-100 focus-visible:opacity-100"
           >
             {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
             {copied ? 'Copied' : 'Copy'}
           </button>
-          <span className="text-[11px] font-mono text-slate-600 hidden sm:inline">• Encrypted • RAG-grounded</span>
         </div>
       </div>
     </div>

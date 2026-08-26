@@ -26,7 +26,7 @@ describe('Header', () => {
         voiceEnabled={false}
       />
     );
-    expect(screen.getByTitle('SIGNAL LOCKED')).toBeInTheDocument();
-    expect(screen.getByTitle('VOICE STANDBY')).toBeInTheDocument();
+    expect(screen.getByTitle('ONLINE')).toBeInTheDocument();
+    expect(screen.getByTitle('VOICE OFF')).toBeInTheDocument();
   });
 });
