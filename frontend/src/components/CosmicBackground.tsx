@@ -36,24 +36,24 @@ function StarField() {
   useEffect(() => {
     const mobile = window.innerWidth < 768;
     const count = mobile ? 78 : 168;
-    const brightCount = mobile ? 6 : 14;
+    const brightCount = mobile ? 8 : 16;
     const regular = Array.from({ length: count - brightCount }, (_, i) => ({
       id: i,
       left: `${Math.random() * 100}%`,
       top: `${Math.random() * 100}%`,
-      size: 1 + Math.random() * 1.4,
-      duration: `${2.2 + Math.random() * 3.4}s`,
-      delay: `${Math.random() * 4}s`,
-      opacity: 0.35 + Math.random() * 0.55,
+      size: 1.1 + Math.random() * 1.6,
+      duration: `${1.4 + Math.random() * 1.8}s`,
+      delay: `${Math.random() * 2.5}s`,
+      opacity: 0.45 + Math.random() * 0.5,
     }));
     const bright = Array.from({ length: brightCount }, (_, i) => ({
       id: count - brightCount + i,
       left: `${Math.random() * 100}%`,
       top: `${Math.random() * 100}%`,
-      size: 1.9 + Math.random() * 1.2,
-      duration: `${2.8 + Math.random() * 2.2}s`,
-      delay: `${Math.random() * 3}s`,
-      opacity: 0.85 + Math.random() * 0.15,
+      size: 2.1 + Math.random() * 1.4,
+      duration: `${1.6 + Math.random() * 1.2}s`,
+      delay: `${Math.random() * 2}s`,
+      opacity: 0.9 + Math.random() * 0.1,
       bright: true,
     }));
     setStars([...regular, ...bright]);

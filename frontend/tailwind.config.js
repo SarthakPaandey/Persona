@@ -31,8 +31,9 @@ module.exports = {
         'fade-up': 'fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both',
         'fade-in': 'fadeIn 0.5s ease-out both',
         'bounce-dot': 'bounceDot 1.2s ease-in-out infinite',
-        twinkle: 'twinkle 3s ease-in-out infinite',
-        shoot: 'shoot 7s linear infinite',
+        twinkle: 'twinkle 1.9s ease-in-out infinite',
+        'twinkle-slow': 'twinkle 2.6s ease-in-out infinite',
+        shoot: 'shoot 6s linear infinite',
         'glow-drift': 'glowDrift 28s ease-in-out infinite alternate',
         orbit: 'orbit-spin 8s linear infinite',
         shimmer: 'shimmer 2.2s linear infinite',
@@ -52,8 +53,8 @@ module.exports = {
           '30%': { transform: 'translateY(-4px)', opacity: '1' },
         },
         twinkle: {
-          '0%, 100%': { opacity: '0.18', transform: 'scale(0.85)' },
-          '50%': { opacity: '1', transform: 'scale(1.15)' },
+          '0%, 100%': { opacity: '0.22', transform: 'scale(0.75)' },
+          '50%': { opacity: '1', transform: 'scale(1.45)' },
         },
         shoot: {
           '0%': { transform: 'translate3d(0, 0, 0) rotate(-32deg) scaleX(0.4)', opacity: '0' },

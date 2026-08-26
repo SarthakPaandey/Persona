@@ -12,29 +12,29 @@ const SUGGESTIONS = [
   {
     icon: Sparkles,
     label: 'Skills & experience',
-    query: 'What AI engineering skills do you have?',
+    query: 'What AI engineering skills does Sarthak have?',
   },
   {
     icon: Github,
     label: 'Latest projects',
-    query: 'Show me your latest GitHub projects',
+    query: "Show me Sarthak's latest GitHub projects",
   },
   {
     icon: BookOpen,
     label: 'RAG deep dive',
-    query: 'Tell me about your RAG experience',
+    query: "Tell me about Sarthak's RAG experience",
   },
   {
     icon: CalendarCheck,
     label: 'Book an interview',
-    query: "I'd like to book an interview",
+    query: 'I’d like to book an interview with Sarthak',
   },
 ];
 
 export default function EmptyState({ personaName, onPick }: EmptyStateProps) {
   return (
     <div className="min-h-full flex flex-col items-center justify-center text-center px-2 py-10 sm:py-12 animate-fade-up">
-      <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center text-slate-400">
+      <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center text-slate-400 animate-float">
         <Bot size={18} strokeWidth={1.8} aria-hidden="true" />
       </div>
 
@@ -44,12 +44,13 @@ export default function EmptyState({ personaName, onPick }: EmptyStateProps) {
       <p className="mt-1 text-sm text-slate-500">Ask about {personaName}</p>
 
       <div className="mt-7 w-full max-w-[520px] space-y-2">
-        {SUGGESTIONS.map(({ icon: Icon, label, query }) => (
+        {SUGGESTIONS.map(({ icon: Icon, label, query }, i) => (
           <button
             key={query}
             type="button"
             onClick={() => onPick(query)}
-            className="group flex w-full items-center gap-3 rounded-full border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.10] px-4 py-3 text-left transition-colors"
+            style={{ animationDelay: `${i * 70}ms` }}
+            className="group flex w-full items-center gap-3 rounded-full border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.10] px-4 py-3 text-left transition-colors animate-fade-up hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.25)]"
           >
             <span className="w-7 h-7 shrink-0 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-slate-500 group-hover:text-slate-300 transition-colors">
               <Icon size={13} aria-hidden="true" />

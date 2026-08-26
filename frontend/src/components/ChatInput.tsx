@@ -12,9 +12,9 @@ const MAX_LENGTH = 2000;
 
 const QUICK_CHIPS = [
   { label: 'Skills', query: 'What AI engineering skills does Sarthak have?' },
-  { label: 'Projects', query: 'Show me your flagship projects' },
-  { label: 'RAG', query: 'Tell me about your RAG pipeline' },
-  { label: 'Book', query: "I'd like to book an interview" },
+  { label: 'Projects', query: "Show me Sarthak's latest GitHub projects" },
+  { label: 'RAG', query: "Tell me about Sarthak's RAG experience" },
+  { label: 'Book', query: 'I’d like to book an interview with Sarthak' },
 ] as const;
 
 export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
