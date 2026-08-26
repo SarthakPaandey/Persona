@@ -449,6 +449,12 @@ def _is_booking_context(message: str, conversation_history: list) -> bool:
     # don't keep looping — exit booking flow unless the current message is
     # explicitly booking-related.
     if _assistant_requested_email(conversation_history):
+        if _extract_first_email(message) and not _email_already_provided(
+            conversation_history
+        ):
+            # The user is replying with the email that was just requested —
+            # stay in booking flow even though a bare email has no booking keywords.
+            return True
         if _email_already_provided(conversation_history, message):
             return _detect_booking_intent(message)
         return True

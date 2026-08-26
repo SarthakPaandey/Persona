@@ -32,14 +32,14 @@ class Settings(BaseSettings):
     # https://docs.api.nvidia.com/nim — use a Pinecone index whose dimension matches the model (2048 for NeMo 300M embed v1).
     nvidia_embedding_api_key: str = ""
     nvidia_embedding_base: str = "https://integrate.api.nvidia.com/v1"
-    nvidia_embedding_model: str = "nvidia/llama-3.2-nemoretriever-300m-embed-v1"
+    nvidia_embedding_model: str = "nvidia/llama-3.2-nv-embedqa-1b-v1"
 
     # Must match the embedding model output size (1536 for text-embedding-3-small, 4096 for Qwen3-Embedding-8B, 2048 for NVIDIA NeMo 300M embed v1, etc.).
     pinecone_embedding_dimension: int = 1536
 
-    # Groq — chat LLM fallback (OpenAI-compatible). Default model can be overridden (e.g. qwen/qwen3-32b).
+    # Groq — chat LLM fallback (OpenAI-compatible). Default model can be overridden (e.g. openai/gpt-oss-20b).
     groq_api_key: str = ""
-    groq_model: str = "qwen/qwen3-32b"
+    groq_model: str = "openai/gpt-oss-120b"
     groq_api_base: str = "https://api.groq.com/openai/v1"
     # Optional comma-separated backup Groq keys for automatic rotation on 429/rate limits.
     groq_api_keys: str = ""
@@ -49,8 +49,8 @@ class Settings(BaseSettings):
     # NVIDIA NIM chat (OpenAI-compatible /v1/chat/completions). Uses same nvapi key as embeddings if nvidia_chat_api_key empty.
     nvidia_chat_api_key: str = ""
     nvidia_chat_base: str = "https://integrate.api.nvidia.com/v1"
-    nvidia_chat_model: str = "meta/llama-3.1-70b-instruct"
-    # Optional comma-separated NVIDIA chat fallback models (for example: google/gemma-2-9b-it).
+    nvidia_chat_model: str = "meta/llama-3.3-70b-instruct"
+    # Optional comma-separated NVIDIA chat fallback models (for example: deepseek-ai/deepseek-v4-flash-0731).
     nvidia_chat_model_candidates: str = ""
 
     # ModelScope chat fallback (e.g. stepfun-ai/Step-3.5-Flash). Reuses embedding token/base if these are empty.
