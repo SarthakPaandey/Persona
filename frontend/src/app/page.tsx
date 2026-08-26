@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 
 import ChatInput from "@/components/ChatInput";
 import ChatWindow from "@/components/ChatWindow";
@@ -14,7 +14,7 @@ function HudCorner({ className }: { className: string }) {
   return (
     <div
       aria-hidden="true"
-      className={`absolute w-5 h-5 border-cyan-300/70 pointer-events-none z-20 ${className}`}
+      className={`absolute w-6 h-6 border-cyan-300/60 pointer-events-none z-20 ${className}`}
     />
   );
 }
@@ -28,27 +28,43 @@ export default function Home() {
     <>
       <CosmicBackground />
 
-      <div className="relative z-10 flex flex-col h-dvh max-w-3xl mx-auto p-3 sm:p-6">
-        <div className="relative flex flex-col flex-1 min-h-0 rounded-2xl border border-cyan-400/25 shadow-panel overflow-hidden animate-fade-in ring-1 ring-black/60 backdrop-blur-2xl">
-          {/* Deep glass over the nebula */}
-          <div className="absolute inset-0 bg-space-950/45" />
+      <div className="relative z-10 flex flex-col h-dvh max-w-[840px] mx-auto p-3 sm:p-5 lg:p-6">
+        {/* soft outer glow behind the deck */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 blur-[50px] opacity-30 pointer-events-none hidden sm:block"
+          style={{
+            background:
+              "radial-gradient(ellipse 70% 45% at 50% 38%, rgba(34,211,238,0.16), transparent 68%), radial-gradient(ellipse 50% 32% at 50% 85%, rgba(139,92,246,0.14), transparent 70%)",
+          }}
+        />
+
+        <div className="relative flex flex-col flex-1 min-h-0 rounded-[22px] border border-white/[0.09] bg-space-950/30 shadow-panel-strong overflow-hidden ring-1 ring-white/[0.06] backdrop-blur-2xl animate-fade-in">
+          {/* glass + depth */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/[0.06] via-transparent to-black/20" />
+          <div className="absolute inset-0 bg-space-950/35" />
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/40 pointer-events-none"
+            className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/35 pointer-events-none"
           />
-          <div aria-hidden="true" className="absolute inset-0 hud-grid pointer-events-none" />
-          <div aria-hidden="true" className="panel-scan" />
+          <div aria-hidden="true" className="absolute inset-0 hud-grid pointer-events-none opacity-70" />
+          <div aria-hidden="true" className="panel-scan opacity-60" />
+          <div aria-hidden="true" className="absolute inset-0 glass-highlight pointer-events-none opacity-[0.45]" />
 
           {/* HUD corner brackets */}
-          <HudCorner className="top-2 left-2 border-t-2 border-l-2" />
-          <HudCorner className="top-2 right-2 border-t-2 border-r-2" />
-          <HudCorner className="bottom-2 left-2 border-b-2 border-l-2" />
-          <HudCorner className="bottom-2 right-2 border-b-2 border-r-2" />
+          <HudCorner className="top-3 left-3 border-t-[1.5px] border-l-[1.5px] rounded-tl-sm" />
+          <HudCorner className="top-3 right-3 border-t-[1.5px] border-r-[1.5px] rounded-tr-sm" />
+          <HudCorner className="bottom-3 left-3 border-b-[1.5px] border-l-[1.5px] rounded-bl-sm" />
+          <HudCorner className="bottom-3 right-3 border-b-[1.5px] border-r-[1.5px] rounded-br-sm" />
 
-          {/* Cyan accent line along the top */}
+          {/* top accent */}
           <div
             aria-hidden="true"
-            className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent"
+            className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-cyan-300/50 to-transparent"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute top-0 inset-x-[18%] h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent blur-[0.5px]"
           />
 
           <div className="relative z-10 flex flex-col flex-1 min-h-0">
@@ -62,11 +78,13 @@ export default function Home() {
             {!isPersonaLoading && !persona.resume_configured && (
               <div
                 role="status"
-                className="mx-4 sm:mx-6 mt-3 flex items-center gap-2 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] px-3 py-2 text-xs text-amber-300/90 backdrop-blur-sm"
+                className="mx-4 sm:mx-6 mt-3 flex items-center gap-2.5 rounded-xl border border-amber-400/20 bg-amber-500/[0.06] px-3.5 py-2.5 text-xs leading-relaxed text-amber-200/90 backdrop-blur-sm"
               >
-                <AlertTriangle size={13} className="shrink-0" aria-hidden="true" />
+                <span className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-400/20 flex items-center justify-center shrink-0 text-amber-300">
+                  <AlertTriangle size={14} aria-hidden="true" />
+                </span>
                 <span>
-                  The archives are unindexed — run ingestion for grounded answers.
+                  Archives unindexed — run ingestion for grounded answers. RORI will still answer from the mission brief.
                 </span>
               </div>
             )}
@@ -77,11 +95,16 @@ export default function Home() {
               emptyState={<EmptyState personaName={personaName} onPick={sendMessage} />}
             />
 
-            <div className="px-4 sm:px-6 pb-4">
+            <div className="px-3 sm:px-5 pb-4 pt-2 border-t border-white/[0.06] bg-black/20 backdrop-blur-sm">
               <ChatInput onSend={sendMessage} isLoading={isLoading} />
             </div>
           </div>
         </div>
+
+        <p className="mt-3 hidden sm:flex items-center justify-center gap-2 text-[11px] font-mono tracking-widest uppercase text-slate-500/70">
+          <ShieldCheck size={11} className="text-slate-500" aria-hidden="true" />
+          Secure channel • RAG-grounded • Built for {personaName}
+        </p>
       </div>
     </>
   );

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Sparkles } from "lucide-react";
 
 import { Message } from "@/lib/types";
 
@@ -11,6 +11,7 @@ import SourceCitation from "./SourceCitation";
 
 interface MessageBubbleProps {
   message: Message;
+  isStreaming?: boolean;
 }
 
 function formatTimestamp(date: Date): string {
@@ -21,7 +22,7 @@ function formatTimestamp(date: Date): string {
   }
 }
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
+export default function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
   const [showSources, setShowSources] = useState(false);
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
@@ -31,7 +32,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     try {
       await navigator.clipboard.writeText(message.content);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), 1600);
     } catch {
       // Clipboard unavailable; ignore.
     }
@@ -42,14 +43,15 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   if (isUser) {
     return (
       <div className="flex justify-end animate-fade-up">
-        <div className="max-w-[85%] sm:max-w-[75%]">
-          <div className="rounded-2xl rounded-br-md bg-gradient-to-br from-violet-600 to-cyan-600 text-cyan-50 px-4 py-2.5 shadow-glow-sm ring-1 ring-cyan-300/30">
-            <div className="chat-markdown text-[15px] [&_a]:text-cyan-200 [&_strong]:text-white [&_code]:text-cyan-200 [&_code]:bg-slate-950/50">
+        <div className="max-w-[86%] sm:max-w-[74%]">
+          <div className="relative rounded-[18px] rounded-br-md bg-gradient-to-br from-violet-600 via-violet-600 to-cyan-500 text-white px-4 py-3 shadow-[0_8px_24px_rgba(124,58,237,0.28),0_0_0_1px_rgba(103,232,249,0.18)]">
+            <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-b from-white/[0.10] to-transparent pointer-events-none" />
+            <div className="relative chat-markdown text-[15px] leading-6 [&_a]:text-cyan-100 [&_strong]:text-white [&_code]:text-cyan-100 [&_code]:bg-white/10 [&_code]:border-white/20">
               <ReactMarkdown>{message.content}</ReactMarkdown>
             </div>
           </div>
           {time && (
-            <time className="mt-1 block text-right text-[11px] text-slate-600 pr-1">
+            <time className="mt-1.5 block text-right text-[11px] font-mono tracking-wide text-slate-500 pr-1">
               {time}
             </time>
           )}
@@ -64,67 +66,93 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
       <img
         src="/space/astronaut.jpg"
         alt=""
-        className="shrink-0 w-7 h-7 rounded-full object-cover ring-1 ring-cyan-400/60 mt-1"
+        className="shrink-0 w-7 h-7 rounded-full object-cover ring-1 ring-cyan-400/60 mt-1 shadow-glow-sm"
         draggable={false}
       />
 
-      <div className="min-w-0 max-w-[88%] sm:max-w-[80%] group">
-        <div className="rounded-2xl rounded-tl-md border border-cyan-400/15 bg-black/40 backdrop-blur-sm px-4 py-3 transition-colors group-hover:border-cyan-400/30">
-          <div className="chat-markdown text-[15px] text-slate-200">
-            <ReactMarkdown>{message.content}</ReactMarkdown>
-          </div>
+      <div className="min-w-0 max-w-[90%] sm:max-w-[78%] group/bubble">
+        <div className="relative rounded-2xl rounded-tl-md border border-white/[0.08] bg-black/45 backdrop-blur-md px-4 py-3.5 overflow-hidden shadow-panel">
+          {/* left accent beam */}
+          <div
+            aria-hidden="true"
+            className="absolute left-0 top-3 bottom-3 w-px bg-gradient-to-b from-cyan-300/70 via-cyan-300/20 to-transparent"
+          />
+          {/* top highlight */}
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-cyan-300/20 via-white/10 to-transparent opacity-60" />
+          <div aria-hidden="true" className="absolute inset-0 glass-highlight pointer-events-none opacity-[0.55]" />
 
-          {(message.bookingLink || (message.availableSlots?.length ?? 0) > 0) && (
-            <div className="mt-3">
-              <CalendarWidget
-                slots={message.availableSlots}
-                bookingLink={message.bookingLink}
-                timezone={message.timezone}
-              />
-            </div>
-          )}
-
-          {!!message.sources?.length && (
-            <div className="mt-3 pt-2.5 border-t border-cyan-400/10">
-              <button
-                type="button"
-                onClick={() => setShowSources(!showSources)}
-                aria-expanded={showSources}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-cyan-300/70 hover:text-cyan-200 transition-colors"
-              >
-                <span
-                  className={`inline-block transition-transform duration-200 ${showSources ? "rotate-90" : ""}`}
-                  aria-hidden="true"
-                >
-                  ▸
+          <div className="relative">
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-medium tracking-wide">
+              <span className="inline-flex items-center gap-1.5 text-cyan-200">
+                <Sparkles size={11} className="text-cyan-300" aria-hidden="true" />
+                RORI
+              </span>
+              <span className="w-1 h-1 rounded-full bg-white/20" aria-hidden="true" />
+              <span className="font-mono text-slate-500">{time || 'now'}</span>
+              {isStreaming && (
+                <span className="ml-1 inline-flex items-center gap-1 text-emerald-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  streaming
                 </span>
-                Signal sources ({message.sources.length})
-              </button>
-
-              {showSources && (
-                <div className="mt-2.5 space-y-2 animate-fade-up">
-                  {message.sources.map((source, idx) => (
-                    <SourceCitation key={`${source.source}-${idx}`} source={source} />
-                  ))}
-                </div>
               )}
             </div>
-          )}
+
+            <div className="chat-markdown text-[15px] text-slate-200">
+              <ReactMarkdown>{message.content}</ReactMarkdown>
+              {isStreaming && message.content?.trim() && <span className="stream-cursor" aria-hidden="true" />}
+            </div>
+
+            {(message.bookingLink || (message.availableSlots?.length ?? 0) > 0) && (
+              <div className="mt-3.5">
+                <CalendarWidget
+                  slots={message.availableSlots}
+                  bookingLink={message.bookingLink}
+                  timezone={message.timezone}
+                />
+              </div>
+            )}
+
+            {!!message.sources?.length && (
+              <div className="mt-3.5 pt-3 border-t border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowSources(!showSources)}
+                  aria-expanded={showSources}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium tracking-wide text-cyan-200/80 hover:text-cyan-100 transition-colors"
+                >
+                  <span
+                    className={`inline-block transition-transform duration-200 ${showSources ? "rotate-90" : ""}`}
+                    aria-hidden="true"
+                  >
+                    ▸
+                  </span>
+                  Signal sources — {message.sources.length} {message.sources.length === 1 ? 'fragment' : 'fragments'}
+                </button>
+
+                {showSources && (
+                  <div className="mt-3 space-y-2.5 animate-fade-up">
+                    {message.sources.map((source, idx) => (
+                      <SourceCitation key={`${source.source}-${idx}`} source={source} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="mt-1 flex items-center gap-2 pl-1">
-          {time && <time className="text-[11px] text-slate-600">{time}</time>}
-          {message.content && (
-            <button
-              type="button"
-              onClick={handleCopy}
-              aria-label={copied ? "Copied" : "Copy message"}
-              title="Copy message"
-              className="text-slate-600 hover:text-cyan-300 transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-            >
-              {copied ? <Check size={13} /> : <Copy size={13} />}
-            </button>
-          )}
+        <div className="mt-1.5 flex items-center gap-2 pl-1">
+          <button
+            type="button"
+            onClick={handleCopy}
+            aria-label={copied ? "Copied" : "Copy message"}
+            title="Copy message"
+            className="inline-flex items-center gap-1 text-[11px] font-medium tracking-wide text-slate-500 hover:text-cyan-300 transition-colors opacity-0 group-hover/bubble:opacity-100 focus-visible:opacity-100"
+          >
+            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <span className="text-[11px] font-mono text-slate-600 hidden sm:inline">• Encrypted • RAG-grounded</span>
         </div>
       </div>
     </div>
