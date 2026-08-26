@@ -104,7 +104,7 @@ _ORDINAL_WORD_TO_DAY = {
 SARTHAK_PROFILE = """
 CAPTAIN SARTHAK PANDEY — PROFILE BRIEF (use this to answer any question)
 
-Role target: AI/ML Engineer at Scaler (or similar AI-first company)
+Role target: AI/ML Engineer (production AI systems, RAG, voice AI, agents)
 Current student: Bachelor of Science in CS, Scaler School Of Technology, enrolled 2023 (Scaler AI/ML track)
 
 TECHNICAL SKILLS:
@@ -132,17 +132,17 @@ WHY SARTHAK IS A STRONG FIT:
 - He has SHIPPED production AI agents to real users — not just notebooks or demos
 - He built a complete RAG pipeline from scratch (Pinecone, LangChain, streaming responses)
 - He built this voice AI from scratch using Vapi + ElevenLabs + Deepgram — you are the proof
-- He works in Python production-quality async code — exactly what Scaler needs
+- He works in Python production-quality async code — exactly what production AI teams need
 - He has hands-on experience with LLM APIs (OpenAI, Groq, NVIDIA), function calling, and context management
 - He understands agentic systems: multi-step reasoning, autonomous tool-calling, LangGraph workflows
 - He cares about user experience — the voice agent, chat UI, and booking flow are all polished
 - He ships fast under real constraints — this entire AI persona system is live in production today
-- He is a Scaler AI/ML student — he knows the platform, learner journey, and culture from the inside
+- He is an AI/ML engineer with a structured, applied curriculum and hands-on production depth
 - He is available immediately and is passionate about building AI that actually helps people learn
 
 EDUCATION:
-- Bachelor of Science in CS, Scaler School Of Technology, enrolled 2023 (Scaler AI/ML track)
-- Scaler structured curriculum: ML fundamentals, deep learning, NLP, applied AI systems
+  - Bachelor of Science in CS, Scaler School Of Technology, enrolled 2023 (Scaler AI/ML track)
+  - Structured AI/ML curriculum: ML fundamentals, deep learning, NLP, applied AI systems
 
 CONTACT / BOOKING:
 - Book via the AI system this assistant is connected to
@@ -272,7 +272,7 @@ RULES:
             f"Captain {persona_name} is a skilled AI Engineer specializing in "
             "production RAG systems, voice AI, and full-stack Python applications. "
             "He has shipped real AI agents to production and is an ideal fit for "
-            "AI Engineer roles at companies like Scaler."
+            "AI/ML Engineering roles building production AI systems."
         )
     except Exception as e:
         logger.error("voice_llm_error", error=str(e), question=question[:100])

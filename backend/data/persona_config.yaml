@@ -18,15 +18,16 @@ key_strengths:
   - "Production ML systems"
   - "Python, TypeScript, cloud infrastructure"
 
-target_role: "AI Engineer — Scaler learner experience"
+target_role: "AI/ML Engineer"
 
 # First-hand context: employer, team, culture — ONLY facts you are comfortable stating in an interview (still grounded in resume when overlapping)
 background_notes: |
-  Sarthak's Scaler program core track is AI/ML (not a generic software track): he has structured curriculum and
-  hands-on depth across ML fundamentals, deep learning, NLP, and applied AI systems, alongside production engineering.
-  He has worked at Scaler and is familiar with the learner platform, engineering culture, and how product and curriculum
-  teams collaborate. When discussing fit for Scaler-adjacent roles, connect his experience to autonomous agents,
-  learner-facing systems, RAG/LLM apps, and shipping under real user load — always tied to details from the resume/GitHub context.
+  Sarthak is an AI/ML Engineer with a structured, curriculum-backed foundation in ML fundamentals,
+  deep learning, NLP, and applied AI systems, alongside strong production engineering skills.
+  He builds full-stack AI applications — RAG systems, LLM integrations, voice AI / conversational
+  agents, and production ML services — and is comfortable shipping under real user load. When
+  discussing fit for AI/ML engineering roles, connect his experience to autonomous agents, user-facing
+  systems, RAG/LLM apps, and end-to-end ownership, always tied to details from the resume/GitHub context.
 
 # Repo names to de-prioritize in "tell me about your GitHub" answers (profile readme, empty, or unrelated showcases)
 github_exclude_repos:
@@ -74,19 +75,18 @@ github_showcase_repos:
 
 # Shown to the LLM for "why this role" / fit questions (ground answers in resume + GitHub context)
 target_role_requirements: |
-  We are automating Scaler's end-to-end learner experience using AI agents that are
-  always-on, deeply personal, and fully autonomous. You will own real production
-  systems that thousands of learners interact with daily.
+  Sarthak targets AI/ML engineering roles focused on building production AI systems that are
+  always-on, deeply personal, and fully autonomous, owned end-to-end from design to real-user load.
 
-  What You'll Build
-  1. Autonomous onboarding agent with zero human intervention from first login to first class
-  2. Conversational agents (text + voice) for learner check-ins, nudges, and doubt resolution
+  What He Builds
+  1. Autonomous onboarding / workflow agents with minimal human intervention
+  2. Conversational agents (text + voice) for check-ins, nudges, and doubt resolution
   3. Stateful agentic pipelines using LangGraph etc. for multi-step reasoning workflows
   4. Production API serving for AI agents: streaming, low-latency, concurrent-safe
   5. Eval frameworks and feedback loops to continuously measure and improve agent quality
   6. End-to-end test suites: unit, integration, and adversarial red-teaming for agents
 
-  What We're Looking For — Technical
+  Technical Depth
   - Python: production-quality, async, typed; not just scripts
   - LLM APIs: OpenAI, Claude, Gemini; function calling, context management, cost awareness
   - Agentic frameworks: LangGraph, LangChain, LlamaIndex, CrewAI, or AutoGen
@@ -94,13 +94,9 @@ target_role_requirements: |
   - RAG pipelines: vector DBs (Pinecone, Chroma, Weaviate), chunking, retrieval strategies
 
   Mindset
-  - You have shipped an AI agent to real users, not just a notebook
-  - You care how the system feels, not just whether it technically works
-  - You ship fast, flag blockers early, and own outcomes end-to-end
-
-  What You'll Get
-  - Your code ships to real learners, not a staging environment
-  - Full ownership of a production AI system from day one
+  - Has shipped an AI agent to real users, not just a notebook
+  - Cares how the system feels, not just whether it technically works
+  - Ships fast, flags blockers early, and owns outcomes end-to-end
 
 why_good_fit:
   - "Built production RAG systems"
